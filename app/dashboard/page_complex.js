@@ -1,0 +1,259 @@
+'use client';
+
+import ProtectedRoute from '@/components/protected-route';
+import AdminLayout from '@/components/admin-layout';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import {
+  Package,
+  AlertTriangle,
+  DollarSign,
+  Warehouse,
+  Users,
+  ShoppingCart,
+  RefreshCw,
+} from 'lucide-react';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts';
+import { mockRecentUpdates, mockInventoryDistribution } from '@/lib/mock-data';
+import { useDashboard } from '@/lib/dashboard-context';
+import { Button } from '@/components/ui/button';
+
+export default function DashboardPage() {
+  const { metrics, loading, error, refreshMetrics } = useDashboard();
+  console.log('Dashboard render - metrics:', metrics, 'loading:', loading, 'error:', error);
+  
+  if (loading) {
+    console.log('Rendering loading state');
+    return (
+      <ProtectedRoute allowedRoles={['admin']}>
+        <AdminLayout>
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-2" />
+              <p>Loading dashboard...</p>
+            </div>
+          </div>
+        </AdminLayout>
+      </ProtectedRoute>
+    );
+  }
+
+  if (error) {
+    console.log('Rendering error state:', error);
+    return (
+      <ProtectedRoute allowedRoles={['admin']}>
+        <AdminLayout>
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <AlertTriangle className="h-8 w-8 text-red-500 mx-auto mb-2" />
+              <p className="text-red-600 mb-4">{error}</p>
+              <Button onClick={refreshMetrics} variant="outline">
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Retry
+              </Button>
+            </div>
+          </div>
+        </AdminLayout>
+      </ProtectedRoute>
+    );
+  }
+
+  console.log('Rendering main dashboard with metrics:', metrics);
+  return (
+    <ProtectedRoute allowedRoles={['admin']}>
+      <AdminLayout>
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold">Admin Dashboard</h1>
+              <p className="text-muted-foreground">
+                Overview of your inventory system
+              </p>
+            </div>
+            <Button onClick={refreshMetrics} variant="outline" size="sm">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+          </div>
+
+          {/* Key Metrics */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Total Products
+                </CardTitle>
+                <Package className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {metrics?.totalProducts || 0}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Items in inventory
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Low Stock</CardTitle>
+                <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-red-600">
+                  {metrics?.lowStock || 0}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Items need restocking
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Total Value
+                </CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  ${(metrics?.totalValue || 0).toLocaleString()}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Total inventory value
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Total Shelves
+                </CardTitle>
+                <Warehouse className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {metrics?.totalShelves || 0}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Storage locations
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Total Users
+                </CardTitle>
+                <Users className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {metrics?.totalUsers || 0}
+                </div>
+                <p className="text-xs text-muted-foreground">Active users</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Recent Sales
+                </CardTitle>
+                <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {metrics?.recentSales || 0}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Today's transactions
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Charts Section */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Inventory Distribution</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={mockInventoryDistribution}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="category" />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="count" fill="#3b82f6" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Updates</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Product</TableHead>
+                      <TableHead>Action</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {mockRecentUpdates.map((update, index) => (
+                      <TableRow key={index}>
+                        <TableCell className="font-medium">
+                          {update.product}
+                        </TableCell>
+                        <TableCell>{update.action}</TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              update.status === 'completed'
+                                ? 'default'
+                                : update.status === 'pending'
+                                ? 'secondary'
+                                : 'destructive'
+                            }
+                          >
+                            {update.status}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </AdminLayout>
+    </ProtectedRoute>
+  );
+}
