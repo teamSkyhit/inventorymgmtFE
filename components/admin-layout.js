@@ -1,18 +1,30 @@
-'use client'
+'use client';
 
-import { useAuth } from '@/lib/auth-context'
-import { usePathname } from 'next/navigation'
-import Link from 'next/link'
-import { LayoutDashboard, Package, Plus, Warehouse, Users, Settings, LogOut, Search, Bell, Menu } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { useState } from 'react'
+import { useAuth } from '@/lib/auth-context';
+import { usePathname, useRouter } from 'next/navigation';
+import Link from 'next/link';
+import {
+  LayoutDashboard,
+  Package,
+  Plus,
+  Warehouse,
+  Users,
+  Settings,
+  LogOut,
+  Search,
+  Bell,
+  Menu,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { useState } from 'react';
 
 export default function AdminLayout({ children }) {
-  const { user, logout } = useAuth()
-  const pathname = usePathname()
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const { user, logout } = useAuth();
+  const pathname = usePathname();
+  const router = useRouter();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -20,8 +32,8 @@ export default function AdminLayout({ children }) {
     { name: 'Inventory', href: '/inventory', icon: Package },
     { name: 'Shelves', href: '/shelves', icon: Warehouse },
     { name: 'Users', href: '/users', icon: Users },
-    { name: 'Settings', href: '/settings', icon: Settings }
-  ]
+    { name: 'Settings', href: '/settings', icon: Settings },
+  ];
 
   return (
     <div className="min-h-screen bg-background">
@@ -39,7 +51,10 @@ export default function AdminLayout({ children }) {
           </Button>
 
           {/* Logo */}
-          <Link href="/dashboard" className="flex items-center gap-2 font-bold text-xl">
+          <Link
+            href="/dashboard"
+            className="flex items-center gap-2 font-bold text-xl"
+          >
             <Package className="h-6 w-6 text-primary" />
             <span className="hidden sm:inline">UniTrackInventory</span>
           </Link>
@@ -73,12 +88,18 @@ export default function AdminLayout({ children }) {
         <aside className="hidden md:flex w-64 flex-col border-r bg-background min-h-[calc(100vh-4rem)]">
           <nav className="flex-1 space-y-1 p-4">
             {navigation.map((item) => {
-              const Icon = item.icon
-              const isActive = pathname === item.href
+              const Icon = item.icon;
+              const isActive = pathname === item.href;
               return (
                 <Link
                   key={item.name}
                   href={item.href}
+                  onClick={(e) => {
+                    // force programmatic navigation and log clicks for debugging
+                    e.preventDefault();
+                    console.log('AdminLayout nav click ->', item.href);
+                    router.push(item.href);
+                  }}
                   className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                     isActive
                       ? 'bg-primary text-primary-foreground'
@@ -88,7 +109,7 @@ export default function AdminLayout({ children }) {
                   <Icon className="h-5 w-5" />
                   {item.name}
                 </Link>
-              )
+              );
             })}
           </nav>
           <div className="p-4 border-t">
@@ -106,17 +127,28 @@ export default function AdminLayout({ children }) {
         {/* Mobile Sidebar */}
         {mobileMenuOpen && (
           <div className="fixed inset-0 z-40 md:hidden">
-            <div className="fixed inset-0 bg-black/50" onClick={() => setMobileMenuOpen(false)} />
+            <div
+              className="fixed inset-0 bg-black/50"
+              onClick={() => setMobileMenuOpen(false)}
+            />
             <aside className="fixed left-0 top-16 bottom-0 w-64 bg-background border-r">
               <nav className="flex-1 space-y-1 p-4">
                 {navigation.map((item) => {
-                  const Icon = item.icon
-                  const isActive = pathname === item.href
+                  const Icon = item.icon;
+                  const isActive = pathname === item.href;
                   return (
                     <Link
                       key={item.name}
                       href={item.href}
-                      onClick={() => setMobileMenuOpen(false)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setMobileMenuOpen(false);
+                        console.log(
+                          'AdminLayout mobile nav click ->',
+                          item.href
+                        );
+                        router.push(item.href);
+                      }}
                       className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                         isActive
                           ? 'bg-primary text-primary-foreground'
@@ -126,7 +158,7 @@ export default function AdminLayout({ children }) {
                       <Icon className="h-5 w-5" />
                       {item.name}
                     </Link>
-                  )
+                  );
                 })}
               </nav>
             </aside>
@@ -134,10 +166,8 @@ export default function AdminLayout({ children }) {
         )}
 
         {/* Main Content */}
-        <main className="flex-1 p-6">
-          {children}
-        </main>
+        <main className="flex-1 p-6">{children}</main>
       </div>
     </div>
-  )
+  );
 }
