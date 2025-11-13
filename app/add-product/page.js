@@ -24,9 +24,13 @@ import {
 import { RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
+import { useCommon } from '@/lib/common-context';
 
 export default function AddProductPage() {
   const router = useRouter();
+  const { categories } = useCommon();
+  const [subCategoryList, setSubCategoryList] = useState([]);
+  console.log('AddProductPage render - commonCategories:', categories);
   const [formData, setFormData] = useState({
     name: '',
     category: '',
@@ -38,13 +42,18 @@ export default function AddProductPage() {
     description: '',
   });
 
-  const categories = [
-    'Electronics',
-    'Groceries',
-    'Clothing',
-    'Books',
-    'Home Goods',
-  ];
+  // const defaultCategories = [
+  //   'Electronics',
+  //   'Groceries',
+  //   'Clothing',
+  //   'Books',
+  //   'Home Goods',
+  // ];
+  // const categories =
+  //   commonCategories && commonCategories.length
+  //     ? commonCategories
+  //     : defaultCategories;
+
   const shelves = [
     'A1',
     'A2',
@@ -107,7 +116,14 @@ export default function AddProductPage() {
   };
 
   const handleChange = (field, value) => {
+    debugger;
     setFormData({ ...formData, [field]: value });
+    if (field === 'category') {
+      const subs =
+        categories?.find((cat) => cat.id === value)?.subcategories || [];
+      setSubCategoryList(subs);
+      setFormData((prev) => ({ ...prev, subcategory: '' }));
+    }
   };
 
   return (
@@ -151,9 +167,9 @@ export default function AddProductPage() {
                         <SelectValue placeholder="Select category" />
                       </SelectTrigger>
                       <SelectContent>
-                        {categories.map((cat) => (
-                          <SelectItem key={cat} value={cat}>
-                            {cat}
+                        {categories?.map((cat) => (
+                          <SelectItem key={cat.id} value={cat.id}>
+                            {cat.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -173,11 +189,16 @@ export default function AddProductPage() {
                         <SelectValue placeholder="Select subcategory" />
                       </SelectTrigger>
                       <SelectContent>
-                        {getSubcategories(formData.category).map((subcat) => (
+                        {subCategoryList?.map((subcat) => (
+                          <SelectItem key={subcat?.id} value={subcat?.id}>
+                            {subcat?.name}
+                          </SelectItem>
+                        ))}
+                        {/* {getSubcategories(formData.category).map((subcat) => (
                           <SelectItem key={subcat} value={subcat}>
                             {subcat}
                           </SelectItem>
-                        ))}
+                        ))} */}
                       </SelectContent>
                     </Select>
                   </div>
