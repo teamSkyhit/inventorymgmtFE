@@ -1,5 +1,6 @@
 'use client';
 
+import { memo, useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -14,71 +15,125 @@ import {
   Search,
   Bell,
   Menu,
+  FolderTree,
+  CreditCard,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { useState } from 'react';
+import Loader from '@/components/ui/loader';
+import {
+  subscribeToNetworkStatus,
+  getActiveRequestCount,
+} from '@/lib/network-tracker';
 
-export default function AdminLayout({ children }) {
-  const { user, logout } = useAuth();
+const NAV_ITEMS = [
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { name: 'Add Product', href: '/add-product', icon: Plus },
+  { name: 'Inventory', href: '/inventory', icon: Package },
+  { name: 'Categories', href: '/categories', icon: FolderTree },
+  { name: 'Receipts', href: '/receipts', icon: CreditCard },
+  // { name: 'Bulk Ops', href: '/bulk', icon: FileSpreadsheet },
+  { name: 'Shelves', href: '/shelves', icon: Warehouse },
+  { name: 'Users', href: '/users', icon: Users },
+  { name: 'Settings', href: '/settings', icon: Settings },
+];
+
+function AdminLayoutComponent({ children }) {
+  const { user, logout, loading: authLoading } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [networkBusy, setNetworkBusy] = useState(false);
 
-  const navigation = [
-    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'Add Product', href: '/add-product', icon: Plus },
-    { name: 'Inventory', href: '/inventory', icon: Package },
-    { name: 'Shelves', href: '/shelves', icon: Warehouse },
-    { name: 'Users', href: '/users', icon: Users },
-    { name: 'Settings', href: '/settings', icon: Settings },
-  ];
+  useEffect(() => {
+    NAV_ITEMS.forEach((item) => {
+      try {
+        router.prefetch?.(item.href);
+      } catch (err) {
+        // router.prefetch is not available during SSR
+      }
+    });
+  }, [router]);
+
+  useEffect(() => {
+    setNetworkBusy(getActiveRequestCount() > 0);
+    const unsubscribe = subscribeToNetworkStatus((count) => {
+      setNetworkBusy(count > 0);
+    });
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, []);
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background px-6">
+        <Loader message="Syncing your UniTrack workspace..." />
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background relative">
+      {networkBusy && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/70 backdrop-blur-sm">
+          <Loader message="Updating data..." />
+        </div>
+      )}
       {/* Top Navigation Bar */}
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="flex h-16 items-center px-4 gap-4">
-          {/* Mobile Menu Button */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="md:hidden"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          >
-            <Menu className="h-5 w-5" />
-          </Button>
+        <div className="flex h-16 items-center px-4 gap-4 justify-between">
+          {/* Left: Mobile menu + logo */}
+          <div className="flex items-center gap-3 min-w-[140px]">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="md:hidden"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+            <Link
+              href="/dashboard"
+              className="flex items-center gap-2 font-bold text-xl"
+            >
+              <Package className="h-6 w-6 text-primary" />
+              <span className="hidden sm:inline">UniTrackInventory</span>
+            </Link>
+          </div>
 
-          {/* Logo */}
-          <Link
-            href="/dashboard"
-            className="flex items-center gap-2 font-bold text-xl"
-          >
-            <Package className="h-6 w-6 text-primary" />
-            <span className="hidden sm:inline">UniTrackInventory</span>
-          </Link>
-
-          {/* Search Bar */}
-          <div className="flex-1 max-w-md mx-4">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="search"
-                placeholder="Search products, categories..."
-                className="pl-8"
-              />
+          {/* Center: Search Bar */}
+          <div className="flex-1 flex justify-center">
+            <div className="w-full max-w-md mx-2">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="search"
+                  placeholder="Search products, categories..."
+                  className="pl-8"
+                />
+              </div>
             </div>
           </div>
 
-          {/* Right Side Actions */}
-          <div className="flex items-center gap-2">
+          {/* Right: Notifications + Profile */}
+          <div className="flex items-center gap-2 min-w-[88px] justify-end">
             <Button variant="ghost" size="icon">
               <Bell className="h-5 w-5" />
             </Button>
-            <Avatar>
-              <AvatarFallback>{user?.email?.[0]?.toUpperCase()}</AvatarFallback>
-            </Avatar>
+            {user ? (
+              <Avatar>
+                <AvatarFallback>
+                  {user?.email?.[0]?.toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+            ) : (
+              <Loader />
+            )}
           </div>
         </div>
       </header>
@@ -87,19 +142,15 @@ export default function AdminLayout({ children }) {
         {/* Sidebar - Desktop */}
         <aside className="hidden md:flex w-64 flex-col border-r bg-background min-h-[calc(100vh-4rem)]">
           <nav className="flex-1 space-y-1 p-4">
-            {navigation.map((item) => {
+            {NAV_ITEMS.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href;
               return (
                 <Link
                   key={item.name}
                   href={item.href}
-                  onClick={(e) => {
-                    // force programmatic navigation and log clicks for debugging
-                    e.preventDefault();
-                    console.log('AdminLayout nav click ->', item.href);
-                    router.push(item.href);
-                  }}
+                  prefetch
+                  aria-current={isActive ? 'page' : undefined}
                   className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                     isActive
                       ? 'bg-primary text-primary-foreground'
@@ -133,22 +184,16 @@ export default function AdminLayout({ children }) {
             />
             <aside className="fixed left-0 top-16 bottom-0 w-64 bg-background border-r">
               <nav className="flex-1 space-y-1 p-4">
-                {navigation.map((item) => {
+                {NAV_ITEMS.map((item) => {
                   const Icon = item.icon;
                   const isActive = pathname === item.href;
                   return (
                     <Link
                       key={item.name}
                       href={item.href}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        setMobileMenuOpen(false);
-                        console.log(
-                          'AdminLayout mobile nav click ->',
-                          item.href
-                        );
-                        router.push(item.href);
-                      }}
+                      prefetch
+                      aria-current={isActive ? 'page' : undefined}
+                      onClick={() => setMobileMenuOpen(false)}
                       className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                         isActive
                           ? 'bg-primary text-primary-foreground'
@@ -171,3 +216,6 @@ export default function AdminLayout({ children }) {
     </div>
   );
 }
+
+const AdminLayout = memo(AdminLayoutComponent);
+export default AdminLayout;

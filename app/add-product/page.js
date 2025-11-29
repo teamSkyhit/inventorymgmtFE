@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import ProtectedRoute from '@/components/protected-route';
 import AdminLayout from '@/components/admin-layout';
 import {
@@ -25,34 +25,29 @@ import { RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { useCommon } from '@/lib/common-context';
+import { useAuth } from '@/lib/auth-context';
+import ImageUpload from '@/components/image-upload';
+import { productsAPI } from '@/lib/api';
+import logger from '@/lib/logger';
+import { productSchema, formatZodError, getFieldErrors } from '@/lib/validations';
 
 export default function AddProductPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const { categories } = useCommon();
   const [subCategoryList, setSubCategoryList] = useState([]);
-  console.log('AddProductPage render - commonCategories:', categories);
+  const [errors, setErrors] = useState({});
   const [formData, setFormData] = useState({
     name: '',
-    category: '',
-    subcategory: '',
+    categoryId: '',
+    subcategoryId: '',
     barcode: '',
     quantity: '',
     price: '',
-    shelf: '',
+    shelfId: '',
     description: '',
+    image: '',
   });
-
-  // const defaultCategories = [
-  //   'Electronics',
-  //   'Groceries',
-  //   'Clothing',
-  //   'Books',
-  //   'Home Goods',
-  // ];
-  // const categories =
-  //   commonCategories && commonCategories.length
-  //     ? commonCategories
-  //     : defaultCategories;
 
   const shelves = [
     'A1',
@@ -73,56 +68,103 @@ export default function AddProductPage() {
     'D4',
   ];
 
-  const subcategories = {
-    Electronics: ['Laptops', 'Smartphones', 'Accessories', 'Audio'],
-    Groceries: ['Fruits', 'Vegetables', 'Dairy', 'Bakery', 'Meat'],
-    Clothing: ['Shorts', 'Pants', 'Saree', 'Kurta', 'Shirts', 'Dresses'],
-    Books: ['Fiction', 'Non-Fiction', 'Textbooks', 'Comics'],
-    'Home Goods': ['Furniture', 'Decor', 'Kitchen', 'Bathroom'],
-  };
-
-  const getSubcategories = (category) => {
-    return subcategories[category] || [];
-  };
+  useEffect(() => {
+    if (formData.categoryId && categories?.length) {
+      const selectedCategory =
+        categories.find((cat) => cat.id === formData.categoryId) || null;
+      setSubCategoryList(selectedCategory?.subcategories || []);
+    } else {
+      setSubCategoryList([]);
+    }
+  }, [formData.categoryId, categories]);
 
   const generateBarcode = () => {
     const barcode = Math.floor(
       100000000000 + Math.random() * 900000000000
     ).toString();
-    setFormData({ ...formData, barcode });
+    setFormData((prev) => ({ ...prev, barcode }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setErrors({});
+
+    if (!user?.token) {
+      toast.error('You must be logged in to add products');
+      router.push('/login');
+      return;
+    }
 
     try {
-      const response = await fetch('/api/products', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
+      // Prepare data for validation
+      const dataToValidate = {
+        ...formData,
+        quantity: formData.quantity ? Number(formData.quantity) : 0,
+        price: formData.price ? Number(formData.price) : 0,
+        subcategoryId: formData.subcategoryId || undefined,
+        shelfId: formData.shelfId || undefined,
+        description: formData.description || undefined,
+        image: formData.image || undefined,
+      };
 
-      const data = await response.json();
+      // Validate input
+      const validationResult = productSchema.safeParse(dataToValidate);
 
-      if (data.success) {
+      if (!validationResult.success) {
+        const fieldErrors = getFieldErrors(validationResult.error);
+        setErrors(fieldErrors);
+        const firstError = formatZodError(validationResult.error);
+        toast.error(firstError);
+        logger.warn('Product validation failed:', validationResult.error.errors);
+        return;
+      }
+
+      const validatedData = validationResult.data;
+      logger.info('Creating product:', { name: validatedData.name, barcode: validatedData.barcode });
+
+      const payload = {
+        name: validatedData.name,
+        categoryId: validatedData.categoryId,
+        subcategoryId: validatedData.subcategoryId || undefined,
+        barcode: validatedData.barcode,
+        quantity: validatedData.quantity,
+        price: validatedData.price,
+        shelfId: validatedData.shelfId || null,
+        description: validatedData.description || null,
+        image: validatedData.image || null,
+      };
+
+      const response = await productsAPI.create(payload, user.token);
+
+      if (response.success) {
+        logger.info('Product created successfully:', { name: validatedData.name });
         toast.success('Product added successfully!');
         router.push('/inventory');
       } else {
-        toast.error('Failed to add product');
+        logger.error('Product creation failed:', response.message);
+        toast.error(response.message || 'Failed to add product');
       }
     } catch (error) {
-      toast.error('An error occurred');
+      logger.error('Error creating product:', error);
+      toast.error('An error occurred while adding the product');
     }
   };
 
   const handleChange = (field, value) => {
-    debugger;
-    setFormData({ ...formData, [field]: value });
-    if (field === 'category') {
-      const subs =
-        categories?.find((cat) => cat.id === value)?.subcategories || [];
-      setSubCategoryList(subs);
-      setFormData((prev) => ({ ...prev, subcategory: '' }));
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    // Clear error for this field when user starts typing
+    if (errors[field]) {
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors[field];
+        return newErrors;
+      });
+    }
+    if (field === 'categoryId') {
+      setSubCategoryList(
+        categories?.find((cat) => cat.id === value)?.subcategories || []
+      );
+      setFormData((prev) => ({ ...prev, subcategoryId: '' }));
     }
   };
 
@@ -153,17 +195,21 @@ export default function AddProductPage() {
                     placeholder="Organic Whole Milk"
                     value={formData.name}
                     onChange={(e) => handleChange('name', e.target.value)}
+                    className={errors.name ? 'border-destructive' : ''}
                     required
                   />
+                  {errors.name && (
+                    <p className="text-sm text-destructive">{errors.name}</p>
+                  )}
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="category">Category</Label>
                     <Select
-                      value={formData.category}
-                      onValueChange={(value) => handleChange('category', value)}
+                    value={formData.categoryId}
+                    onValueChange={(value) => handleChange('categoryId', value)}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className={errors.categoryId ? 'border-destructive' : ''}>
                         <SelectValue placeholder="Select category" />
                       </SelectTrigger>
                       <SelectContent>
@@ -174,16 +220,19 @@ export default function AddProductPage() {
                         ))}
                       </SelectContent>
                     </Select>
+                    {errors.categoryId && (
+                      <p className="text-sm text-destructive">{errors.categoryId}</p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="subcategory">Subcategory</Label>
                     <Select
-                      value={formData.subcategory}
+                    value={formData.subcategoryId}
                       onValueChange={(value) =>
-                        handleChange('subcategory', value)
+                      handleChange('subcategoryId', value)
                       }
-                      disabled={!formData.category}
+                    disabled={!formData.categoryId}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Select subcategory" />
@@ -194,11 +243,6 @@ export default function AddProductPage() {
                             {subcat?.name}
                           </SelectItem>
                         ))}
-                        {/* {getSubcategories(formData.category).map((subcat) => (
-                          <SelectItem key={subcat} value={subcat}>
-                            {subcat}
-                          </SelectItem>
-                        ))} */}
                       </SelectContent>
                     </Select>
                   </div>
@@ -210,10 +254,11 @@ export default function AddProductPage() {
                       <Input
                         id="barcode"
                         placeholder="123456789012"
-                        value={formData.barcode}
+                    value={formData.barcode}
                         onChange={(e) =>
                           handleChange('barcode', e.target.value)
                         }
+                        className={errors.barcode ? 'border-destructive' : ''}
                         required
                       />
                       <Button
@@ -224,13 +269,16 @@ export default function AddProductPage() {
                         <RefreshCw className="h-4 w-4" />
                       </Button>
                     </div>
+                    {errors.barcode && (
+                      <p className="text-sm text-destructive">{errors.barcode}</p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="shelf">Shelf Location</Label>
                     <Select
-                      value={formData.shelf}
-                      onValueChange={(value) => handleChange('shelf', value)}
+                    value={formData.shelfId}
+                    onValueChange={(value) => handleChange('shelfId', value)}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Select shelf location" />
@@ -255,8 +303,12 @@ export default function AddProductPage() {
                       placeholder="150"
                       value={formData.quantity}
                       onChange={(e) => handleChange('quantity', e.target.value)}
+                      className={errors.quantity ? 'border-destructive' : ''}
                       required
                     />
+                    {errors.quantity && (
+                      <p className="text-sm text-destructive">{errors.quantity}</p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
@@ -268,8 +320,12 @@ export default function AddProductPage() {
                       placeholder="4.99"
                       value={formData.price}
                       onChange={(e) => handleChange('price', e.target.value)}
+                      className={errors.price ? 'border-destructive' : ''}
                       required
                     />
+                    {errors.price && (
+                      <p className="text-sm text-destructive">{errors.price}</p>
+                    )}
                   </div>
                 </div>
 
@@ -285,6 +341,12 @@ export default function AddProductPage() {
                     }
                   />
                 </div>
+
+                <ImageUpload
+                  value={formData.image}
+                  onChange={(imageUrl) => handleChange('image', imageUrl)}
+                  label="Product Image"
+                />
 
                 <div className="flex gap-4 justify-end">
                   <Button

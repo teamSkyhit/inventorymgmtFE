@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useMemo } from 'react';
 import ProtectedRoute from '@/components/protected-route';
 import AdminLayout from '@/components/admin-layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -31,30 +31,37 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import { mockRecentUpdates, mockInventoryDistribution } from '@/lib/mock-data';
 import { useDashboard } from '@/lib/dashboard-context';
+import { useCommon } from '@/lib/common-context';
 import { Button } from '@/components/ui/button';
+import Loader from '@/components/ui/loader';
 
 export default function DashboardPage() {
   const { metrics, loading, error, refreshMetrics, recentUpdates } =
     useDashboard();
-  console.log(
-    'Dashboard render - metrics:',
-    metrics,
-    'loading:',
-    loading,
-    'recentUpdates:',
-    recentUpdates
+  const { categories, loading: categoriesLoading } = useCommon();
+
+  const updates = Array.isArray(recentUpdates) ? recentUpdates : [];
+
+  const inventoryDistribution = useMemo(() => {
+    if (!Array.isArray(categories)) return [];
+    return categories.map((category) => ({
+      category: category.name,
+      products:
+        category._count?.products ?? category.products?.length ?? 0,
+    }));
+  }, [categories]);
+
+  const hasDistributionData = inventoryDistribution.some(
+    (item) => item.products > 0
   );
+
   if (loading) {
     return (
       <ProtectedRoute allowedRoles={['admin']}>
         <AdminLayout>
           <div className="flex items-center justify-center h-64">
-            <div className="text-center">
-              <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-2" />
-              <p>Loading dashboard...</p>
-            </div>
+            <Loader message="Loading dashboard..." />
           </div>
         </AdminLayout>
       </ProtectedRoute>
@@ -207,35 +214,50 @@ export default function DashboardPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Product Name</TableHead>
+                    <TableHead>Entity</TableHead>
                     <TableHead>Category</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Date</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {mockRecentUpdates.map((update) => (
-                    <TableRow key={update.id}>
-                      <TableCell className="font-medium">
-                        {update.productName}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {update.category}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            update.status === 'Added' ? 'default' : 'secondary'
-                          }
-                        >
-                          {update.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {update.date}
+                  {updates.length === 0 ? (
+                    <TableRow>
+                      <TableCell
+                        colSpan={4}
+                        className="text-center text-muted-foreground"
+                      >
+                        No recent activity.
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : (
+                    updates.slice(0, 8).map((update) => (
+                      <TableRow key={update.id}>
+                        <TableCell className="font-medium">
+                          {update.productName}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {update.category || '—'}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              update.status === 'Deleted'
+                                ? 'destructive'
+                                : update.status === 'Added'
+                                ? 'default'
+                                : 'secondary'
+                            }
+                          >
+                            {update.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {update.date}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
@@ -247,15 +269,25 @@ export default function DashboardPage() {
               <CardTitle>Inventory Distribution by Category</CardTitle>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={mockInventoryDistribution}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="category" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="products" fill="#3b82f6" />
-                </BarChart>
-              </ResponsiveContainer>
+              {categoriesLoading ? (
+                <div className="flex justify-center py-10">
+                  <Loader message="Calculating distribution..." />
+                </div>
+              ) : hasDistributionData ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={inventoryDistribution}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="category" />
+                    <YAxis allowDecimals={false} />
+                    <Tooltip />
+                    <Bar dataKey="products" fill="#3b82f6" />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-10">
+                  No category data available.
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>

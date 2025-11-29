@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,25 +10,91 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Package } from 'lucide-react'
 import { toast } from 'sonner'
+import Loader from '@/components/ui/loader'
+import { loginSchema, formatZodError, getFieldErrors } from '@/lib/validations'
+import logger from '@/lib/logger'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [role, setRole] = useState('admin')
   const [loading, setLoading] = useState(false)
-  const { login } = useAuth()
+  const [errors, setErrors] = useState({})
+  const { login, user, loading: authLoading } = useAuth()
+  const router = useRouter()
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (!authLoading && user) {
+      const userRole = user.role?.toLowerCase()
+      if (userRole === 'admin') {
+        router.push('/dashboard')
+      } else {
+        router.push('/scan')
+      }
+    }
+  }, [user, authLoading, router])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    setErrors({})
     setLoading(true)
 
-    const result = await login(email, password, role)
-    
-    if (!result.success) {
-      toast.error(result.message || 'Login failed')
+    try {
+      // Validate input
+      const validationResult = loginSchema.safeParse({
+        email,
+        password,
+        role,
+      })
+
+      if (!validationResult.success) {
+        const fieldErrors = getFieldErrors(validationResult.error)
+        setErrors(fieldErrors)
+        const firstError = formatZodError(validationResult.error)
+        toast.error(firstError)
+        setLoading(false)
+        return
+      }
+
+      const validatedData = validationResult.data
+      logger.info('Login attempt:', { email: validatedData.email, role: validatedData.role })
+
+      const result = await login(validatedData.email, validatedData.password, validatedData.role)
+      
+      if (!result.success) {
+        logger.warn('Login failed:', result.message)
+        toast.error(result.message || 'Login failed')
+        setLoading(false)
+      } else {
+        logger.info('Login successful:', { email: validatedData.email, role: validatedData.role })
+        toast.success('Login successful!')
+        // Don't set loading to false here as redirect is happening
+      }
+    } catch (error) {
+      logger.error('Login error:', error)
+      toast.error('An error occurred during login')
+      setLoading(false)
     }
-    
-    setLoading(false)
+  }
+
+  // Show loading state while checking auth
+  const isBlocking = authLoading || loading
+
+  if (isBlocking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
+        <Loader message={authLoading ? 'Preparing your account...' : 'Signing you in...'} />
+      </div>
+    )
+  }
+
+  if (user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
+        <Loader message="Redirecting..." />
+      </div>
+    )
   }
 
   return (
@@ -48,12 +115,19 @@ export default function LoginPage() {
               <Label htmlFor="email">Email/Username</Label>
               <Input
                 id="email"
-                type="text"
-                placeholder="Enter your email or username"
+                type="email"
+                placeholder="Enter your email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value)
+                  if (errors.email) setErrors({ ...errors, email: null })
+                }}
+                className={errors.email ? 'border-destructive' : ''}
                 required
               />
+              {errors.email && (
+                <p className="text-sm text-destructive">{errors.email}</p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -63,9 +137,16 @@ export default function LoginPage() {
                 type="password"
                 placeholder="Enter your password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value)
+                  if (errors.password) setErrors({ ...errors, password: null })
+                }}
+                className={errors.password ? 'border-destructive' : ''}
                 required
               />
+              {errors.password && (
+                <p className="text-sm text-destructive">{errors.password}</p>
+              )}
             </div>
 
             <div className="space-y-2">

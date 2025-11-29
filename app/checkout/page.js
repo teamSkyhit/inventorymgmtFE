@@ -14,6 +14,8 @@ import { ShoppingCart, CreditCard, ArrowLeft } from 'lucide-react'
 import { toast } from 'sonner'
 import AdminLayout from '@/components/admin-layout'
 import UserLayout from '@/components/user-layout'
+import { salesAPI } from '@/lib/api'
+import logger from '@/lib/logger'
 
 export default function CheckoutPage() {
   const router = useRouter()
@@ -38,24 +40,36 @@ export default function CheckoutPage() {
       return
     }
 
+    if (!user?.token) {
+      toast.error('You must be logged in')
+      router.push('/login')
+      return
+    }
+
     setIsProcessing(true)
 
     try {
-      // Update inventory for each item
+      const saleResults = []
       for (const item of cart) {
-        await fetch(`/api/products/sale`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            productId: item.id,
-            quantity: item.quantity
-          })
-        })
+        try {
+          const response = await salesAPI.create(
+            { productId: item.id, quantity: item.quantity },
+            user.token
+          )
+          if (response.success) {
+            saleResults.push(response.data?.sale || response.data)
+          } else {
+            throw new Error(response.message || 'Failed to record sale')
+          }
+        } catch (err) {
+          logger.error('Sale creation failed:', err)
+          throw err
+        }
       }
 
-      // Create receipt
+      const receiptId = `RCP-${Date.now()}`
       const receipt = {
-        id: `RCP-${Date.now()}`,
+        id: receiptId,
         date: new Date().toISOString(),
         customerName,
         items: cart,
@@ -63,17 +77,17 @@ export default function CheckoutPage() {
         tax,
         total,
         paymentMethod,
-        processedBy: user?.email
+        processedBy: user?.email,
+        sales: saleResults,
       }
 
-      // Store receipt
       localStorage.setItem('lastReceipt', JSON.stringify(receipt))
 
       // Clear cart
       clearCart()
 
       toast.success('Payment successful!')
-      router.push('/receipt')
+      router.push(`/receipts?highlight=${receiptId}`)
     } catch (error) {
       toast.error('Payment failed. Please try again.')
     } finally {

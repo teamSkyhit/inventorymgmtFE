@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import Loader from '@/components/ui/loader';
 
 export default function ProtectedRoute({ children, allowedRoles = [] }) {
   const { user, loading } = useAuth();
@@ -14,21 +15,12 @@ export default function ProtectedRoute({ children, allowedRoles = [] }) {
 
   useEffect(() => {
     if (!loading) {
-      console.log('ProtectedRoute check', {
-        loading,
-        user,
-        allowedRoles,
-        normalizedAllowed,
-        userRole,
-      });
       if (!user) {
-        console.log('ProtectedRoute: no user, redirecting to /login');
         router.push('/login');
       } else if (
         normalizedAllowed.length > 0 &&
         !normalizedAllowed.includes(userRole)
       ) {
-        console.log('ProtectedRoute: user role not allowed, redirecting...');
         // Redirect to appropriate page based on role
         if (userRole === 'admin') {
           router.push('/dashboard');
@@ -37,12 +29,12 @@ export default function ProtectedRoute({ children, allowedRoles = [] }) {
         }
       }
     }
-  }, [user, loading, router, allowedRoles]);
+  }, [user, loading, router, allowedRoles, normalizedAllowed, userRole]);
 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="text-lg">Loading...</div>
+        <Loader message="Preparing your workspace..." />
       </div>
     );
   }
@@ -51,11 +43,6 @@ export default function ProtectedRoute({ children, allowedRoles = [] }) {
     !user ||
     (normalizedAllowed.length > 0 && !normalizedAllowed.includes(userRole))
   ) {
-    console.log('ProtectedRoute: rendering blocked (returning null)', {
-      user,
-      normalizedAllowed,
-      userRole,
-    });
     return null;
   }
 
