@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { Suspense, useState, useEffect } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import ProtectedRoute from '@/components/protected-route'
 import UserLayout from '@/components/user-layout'
@@ -14,7 +14,7 @@ import { Package, TrendingDown, AlertCircle } from 'lucide-react'
 import { mockProducts } from '@/lib/mock-data'
 import { toast } from 'sonner'
 
-export default function UpdateSalePage() {
+function UpdateSaleContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const productId = searchParams.get('productId')
@@ -211,5 +211,28 @@ export default function UpdateSalePage() {
         </div>
       </UserLayout>
     </ProtectedRoute>
+  )
+}
+
+export default function UpdateSalePage() {
+  return (
+    <Suspense
+      fallback={
+        <ProtectedRoute allowedRoles={['user']}>
+          <UserLayout>
+            <div className="max-w-2xl mx-auto">
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <AlertCircle className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+                  <h3 className="text-lg font-semibold mb-2">Loading...</h3>
+                </CardContent>
+              </Card>
+            </div>
+          </UserLayout>
+        </ProtectedRoute>
+      }
+    >
+      <UpdateSaleContent />
+    </Suspense>
   )
 }

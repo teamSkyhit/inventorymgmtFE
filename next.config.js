@@ -3,10 +3,14 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // Disable tracing to avoid permission issues on Windows
   experimental: {
     // Remove if not using Server Components
     serverComponentsExternalPackages: ['mongodb'],
+    instrumentationHook: false,
   },
+  // Disable telemetry and tracing
+  telemetry: false,
   webpack(config, { dev }) {
     if (dev) {
       // Reduce CPU/memory from file watching
@@ -37,8 +41,8 @@ const nextConfig = {
           {
             key: 'Content-Security-Policy',
             value: isDevelopment
-              ? "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: http://localhost:* https:;"
-              : "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:;",
+              ? "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: http://16.170.247.151 http://localhost:* ws://localhost:*; script-src 'self' 'unsafe-inline' 'unsafe-eval' http://16.170.247.151 http://localhost:*; style-src 'self' 'unsafe-inline' http://16.170.247.151; img-src 'self' data: blob: http://16.170.247.151; connect-src 'self' http://16.170.247.151 http://localhost:* ws://localhost:*;"
+              : "default-src 'self' http://16.170.247.151; script-src 'self' http://16.170.247.151; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http://16.170.247.151; connect-src 'self' http://16.170.247.151;"
           },
           // CORS Headers (only for development or if explicitly configured)
           ...(isDevelopment || process.env.CORS_ORIGINS

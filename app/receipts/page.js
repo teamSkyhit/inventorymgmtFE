@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import ProtectedRoute from '@/components/protected-route';
 import AdminLayout from '@/components/admin-layout';
 import {
@@ -38,7 +38,7 @@ import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import Loader from '@/components/ui/loader';
 
-export default function ReceiptsPage() {
+function ReceiptsContent() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
   const highlightId = searchParams.get('highlight');
@@ -310,76 +310,94 @@ export default function ReceiptsPage() {
             </CardContent>
           </Card>
         </div>
+
+        <Dialog open={!!selectedSale} onOpenChange={() => setSelectedSale(null)}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Receipt Details</DialogTitle>
+              <DialogDescription>
+                Review transaction information
+              </DialogDescription>
+            </DialogHeader>
+
+            {selectedSale && (
+              <div className="space-y-3 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Receipt ID</span>
+                  <span className="font-mono">{selectedSale.id}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Date</span>
+                  <span>{new Date(selectedSale.saleDate).toLocaleString()}</span>
+                </div>
+                <Separator />
+                <div>
+                  <p className="font-medium">
+                    {selectedSale.product?.name || 'Product'}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Barcode: {selectedSale.product?.barcode || '—'}
+                  </p>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Quantity</span>
+                  <span>{selectedSale.quantitySold}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Unit Price</span>
+                  <span>${Number(selectedSale.product?.price || 0).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-lg font-bold">
+                  <span>Total</span>
+                  <span>
+                    $
+                    {(
+                      Number(selectedSale.product?.price || 0) *
+                      selectedSale.quantitySold
+                    ).toFixed(2)}
+                  </span>
+                </div>
+                <Separator />
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Processed By</span>
+                  <span>
+                    {selectedSale.createdBy?.name ||
+                      selectedSale.createdBy?.email ||
+                      'System'}
+                  </span>
+                </div>
+                <Button
+                  className="w-full"
+                  variant="outline"
+                  onClick={() => handlePrint(selectedSale)}
+                >
+                  <Printer className="h-4 w-4 mr-2" />
+                  Print Receipt
+                </Button>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </AdminLayout>
-
-      <Dialog open={!!selectedSale} onOpenChange={() => setSelectedSale(null)}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Receipt Details</DialogTitle>
-            <DialogDescription>
-              Review transaction information
-            </DialogDescription>
-          </DialogHeader>
-
-          {selectedSale && (
-            <div className="space-y-3 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Receipt ID</span>
-                <span className="font-mono">{selectedSale.id}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Date</span>
-                <span>{new Date(selectedSale.saleDate).toLocaleString()}</span>
-              </div>
-              <Separator />
-              <div>
-                <p className="font-medium">
-                  {selectedSale.product?.name || 'Product'}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Barcode: {selectedSale.product?.barcode || '—'}
-                </p>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Quantity</span>
-                <span>{selectedSale.quantitySold}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Unit Price</span>
-                <span>${Number(selectedSale.product?.price || 0).toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between text-lg font-bold">
-                <span>Total</span>
-                <span>
-                  $
-                  {(
-                    Number(selectedSale.product?.price || 0) *
-                    selectedSale.quantitySold
-                  ).toFixed(2)}
-                </span>
-              </div>
-              <Separator />
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Processed By</span>
-                <span>
-                  {selectedSale.createdBy?.name ||
-                    selectedSale.createdBy?.email ||
-                    'System'}
-                </span>
-              </div>
-              <Button
-                className="w-full"
-                variant="outline"
-                onClick={() => handlePrint(selectedSale)}
-              >
-                <Printer className="h-4 w-4 mr-2" />
-                Print Receipt
-              </Button>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </ProtectedRoute>
+  );
+}
+
+export default function ReceiptsPage() {
+  return (
+    <Suspense
+      fallback={
+        <ProtectedRoute allowedRoles={['admin']}>
+          <AdminLayout>
+            <div className="flex items-center justify-center h-[60vh]">
+              <Loader message="Loading receipts..." />
+            </div>
+          </AdminLayout>
+        </ProtectedRoute>
+      }
+    >
+      <ReceiptsContent />
+    </Suspense>
   );
 }
 

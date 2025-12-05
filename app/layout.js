@@ -5,6 +5,7 @@ import { AuthProvider } from '@/lib/auth-context';
 import { DashboardProvider } from '@/lib/dashboard-context';
 import { Toaster } from '@/components/ui/sonner';
 import { CommonProvider } from '@/lib/common-context';
+import { CartProvider } from '@/lib/cart-context';
 import ErrorBoundary from '@/components/error-boundary';
 
 export default function RootLayout({ children }) {
@@ -15,8 +16,10 @@ export default function RootLayout({ children }) {
           <AuthProvider>
             <DashboardProvider>
               <CommonProvider>
-                {children}
-                <Toaster />
+                <CartProvider>
+                  {children}
+                  <Toaster />
+                </CartProvider>
               </CommonProvider>
             </DashboardProvider>
           </AuthProvider>
