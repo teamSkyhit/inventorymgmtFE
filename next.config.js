@@ -40,9 +40,7 @@ const nextConfig = {
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
           {
             key: 'Content-Security-Policy',
-            value: isDevelopment
-              ? "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: http://16.170.247.151 http://localhost:* ws://localhost:*; script-src 'self' 'unsafe-inline' 'unsafe-eval' http://16.170.247.151 http://localhost:*; style-src 'self' 'unsafe-inline' http://16.170.247.151; img-src 'self' data: blob: http://16.170.247.151; connect-src 'self' http://16.170.247.151 http://localhost:* ws://localhost:*;"
-              : "default-src 'self' http://16.170.247.151; script-src 'self' http://16.170.247.151; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http://16.170.247.151; connect-src 'self' http://16.170.247.151;"
+            value: "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: http://16.170.247.151"
           },
           // CORS Headers (only for development or if explicitly configured)
           ...(isDevelopment || process.env.CORS_ORIGINS
