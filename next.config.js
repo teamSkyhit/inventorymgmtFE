@@ -1,11 +1,11 @@
 const nextConfig = {
-  output: 'standalone',
+  output: "standalone",
   images: {
     unoptimized: true,
   },
   experimental: {
     // Remove if not using Server Components
-    serverComponentsExternalPackages: ['mongodb'],
+    serverComponentsExternalPackages: ["mongodb"],
   },
   webpack(config, { dev }) {
     if (dev) {
@@ -13,7 +13,7 @@ const nextConfig = {
       config.watchOptions = {
         poll: 2000, // check every 2 seconds
         aggregateTimeout: 300, // wait before rebuilding
-        ignored: ['**/node_modules'],
+        ignored: ["**/node_modules"],
       };
     }
     return config;
@@ -23,34 +23,38 @@ const nextConfig = {
     pagesBufferLength: 2,
   },
   async headers() {
-    const isDevelopment = process.env.NODE_ENV === 'development';
-    
+    const isDevelopment = process.env.NODE_ENV === "development";
+
     return [
       {
-        source: '/(.*)',
+        source: "/(.*)",
         headers: [
           // Security Headers
-          { key: 'X-Frame-Options', value: 'DENY' },
-          { key: 'X-Content-Type-Options', value: 'nosniff' },
-          { key: 'X-XSS-Protection', value: '1; mode=block' },
-          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-XSS-Protection", value: "1; mode=block" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           {
-            key: 'Content-Security-Policy',
-            value: "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: http://16.170.247.151"
+            key: "Content-Security-Policy",
+            value:
+              "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: http://16.170.247.151",
           },
           // CORS Headers (only for development or if explicitly configured)
           ...(isDevelopment || process.env.CORS_ORIGINS
             ? [
                 {
-                  key: 'Access-Control-Allow-Origin',
-                  value: process.env.CORS_ORIGINS || '*',
+                  key: "Access-Control-Allow-Origin",
+                  value: process.env.CORS_ORIGINS || "*",
                 },
                 {
-                  key: 'Access-Control-Allow-Methods',
-                  value: 'GET, POST, PUT, DELETE, OPTIONS, PATCH',
+                  key: "Access-Control-Allow-Methods",
+                  value: "GET, POST, PUT, DELETE, OPTIONS, PATCH",
                 },
-                { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization' },
-                { key: 'Access-Control-Allow-Credentials', value: 'true' },
+                {
+                  key: "Access-Control-Allow-Headers",
+                  value: "Content-Type, Authorization",
+                },
+                { key: "Access-Control-Allow-Credentials", value: "true" },
               ]
             : []),
         ],
@@ -60,10 +64,8 @@ const nextConfig = {
   async rewrites() {
     return [
       {
-        source: '/api/external/:path*',
-        destination: `${
-          process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000'
-        }/api/:path*`,
+        source: "/api/:path*",
+        destination: `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/:path*`,
       },
     ];
   },
