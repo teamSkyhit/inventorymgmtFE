@@ -37,7 +37,7 @@ const nextConfig = {
           {
             key: "Content-Security-Policy",
             value:
-              "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: http://16.170.247.151",
+              "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: http://16.170.247.151 https://drcdnzib9gu5w.cloudfront.net",
           },
           // CORS Headers (only for development or if explicitly configured)
           ...(isDevelopment || process.env.CORS_ORIGINS
