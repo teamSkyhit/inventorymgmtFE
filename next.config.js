@@ -3,14 +3,10 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  // Disable tracing to avoid permission issues on Windows
   experimental: {
     // Remove if not using Server Components
     serverComponentsExternalPackages: ['mongodb'],
-    instrumentationHook: false,
   },
-  // Disable telemetry and tracing
-  telemetry: false,
   webpack(config, { dev }) {
     if (dev) {
       // Reduce CPU/memory from file watching
