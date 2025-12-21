@@ -9,6 +9,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Table,
   TableBody,
   TableCell,
@@ -42,6 +49,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Plus,
   MoreVertical,
@@ -76,6 +84,10 @@ export default function CategoriesPage() {
   const [categoryFormData, setCategoryFormData] = useState({
     name: '',
     description: '',
+    hsnCode: '',
+    gstRate: 0,
+    gstInclusive: true,
+    minStockLevel: 5,
   });
   const [subcategoryFormData, setSubcategoryFormData] = useState({
     name: '',
@@ -114,7 +126,14 @@ export default function CategoriesPage() {
   // Category handlers
   const handleAddCategory = () => {
     setEditingCategory(null);
-    setCategoryFormData({ name: '', description: '' });
+    setCategoryFormData({ 
+      name: '', 
+      description: '',
+      hsnCode: '',
+      gstRate: 0,
+      gstInclusive: true,
+      minStockLevel: 5,
+    });
     setIsCategoryDialogOpen(true);
   };
 
@@ -123,6 +142,10 @@ export default function CategoriesPage() {
     setCategoryFormData({
       name: category.name,
       description: category.description || '',
+      hsnCode: category.hsnCode || '',
+      gstRate: category.gstRate !== undefined ? Number(category.gstRate) : 0,
+      gstInclusive: category.gstInclusive !== undefined ? category.gstInclusive : true,
+      minStockLevel: category.minStockLevel !== undefined ? Number(category.minStockLevel) : 5,
     });
     setIsCategoryDialogOpen(true);
   };
@@ -528,6 +551,98 @@ export default function CategoriesPage() {
                   {categoryErrors.description && (
                     <p className="text-sm text-destructive">{categoryErrors.description}</p>
                   )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="category-hsnCode">HSN Code *</Label>
+                  <Input
+                    id="category-hsnCode"
+                    value={categoryFormData.hsnCode}
+                    onChange={(e) => {
+                      setCategoryFormData({
+                        ...categoryFormData,
+                        hsnCode: e.target.value,
+                      });
+                      if (categoryErrors.hsnCode) {
+                        setCategoryErrors({ ...categoryErrors, hsnCode: null });
+                      }
+                    }}
+                    className={categoryErrors.hsnCode ? 'border-destructive' : ''}
+                    placeholder="e.g., 8517"
+                    required
+                  />
+                  {categoryErrors.hsnCode && (
+                    <p className="text-sm text-destructive">{categoryErrors.hsnCode}</p>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="category-gstRate">GST Rate (%) *</Label>
+                    <Select
+                      value={categoryFormData.gstRate.toString()}
+                      onValueChange={(value) => {
+                        setCategoryFormData({
+                          ...categoryFormData,
+                          gstRate: Number(value),
+                        });
+                        if (categoryErrors.gstRate) {
+                          setCategoryErrors({ ...categoryErrors, gstRate: null });
+                        }
+                      }}
+                    >
+                      <SelectTrigger className={categoryErrors.gstRate ? 'border-destructive' : ''}>
+                        <SelectValue placeholder="Select GST rate" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="0">0%</SelectItem>
+                        <SelectItem value="5">5%</SelectItem>
+                        <SelectItem value="12">12%</SelectItem>
+                        <SelectItem value="18">18%</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {categoryErrors.gstRate && (
+                      <p className="text-sm text-destructive">{categoryErrors.gstRate}</p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="category-minStockLevel">Minimum Stock Level</Label>
+                    <Input
+                      id="category-minStockLevel"
+                      type="number"
+                      value={categoryFormData.minStockLevel}
+                      onChange={(e) => {
+                        setCategoryFormData({
+                          ...categoryFormData,
+                          minStockLevel: Number(e.target.value) || 5,
+                        });
+                        if (categoryErrors.minStockLevel) {
+                          setCategoryErrors({ ...categoryErrors, minStockLevel: null });
+                        }
+                      }}
+                      className={categoryErrors.minStockLevel ? 'border-destructive' : ''}
+                      placeholder="5"
+                      min="0"
+                    />
+                    {categoryErrors.minStockLevel && (
+                      <p className="text-sm text-destructive">{categoryErrors.minStockLevel}</p>
+                    )}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="category-gstInclusive"
+                      checked={categoryFormData.gstInclusive}
+                      onCheckedChange={(checked) => {
+                        setCategoryFormData({
+                          ...categoryFormData,
+                          gstInclusive: checked,
+                        });
+                      }}
+                    />
+                    <Label htmlFor="category-gstInclusive" className="font-normal cursor-pointer">
+                      GST Inclusive (price includes GST)
+                    </Label>
+                  </div>
                 </div>
               </div>
               <DialogFooter>

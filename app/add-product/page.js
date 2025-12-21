@@ -13,6 +13,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -42,8 +43,13 @@ export default function AddProductPage() {
     categoryId: '',
     subcategoryId: '',
     barcode: '',
+    mrp: '',
+    salePrice: '',
+    modelType: '',
+    packType: '',
     quantity: '',
-    price: '',
+    minStockLevel: '',
+    allowNegativeStock: true,
     shelfId: '',
     description: '',
     image: '',
@@ -99,8 +105,13 @@ export default function AddProductPage() {
       // Prepare data for validation
       const dataToValidate = {
         ...formData,
+        mrp: formData.mrp ? Number(formData.mrp) : 0,
+        salePrice: formData.salePrice ? Number(formData.salePrice) : null,
+        modelType: formData.modelType || null,
+        packType: formData.packType || null,
         quantity: formData.quantity ? Number(formData.quantity) : 0,
-        price: formData.price ? Number(formData.price) : 0,
+        minStockLevel: formData.minStockLevel ? Number(formData.minStockLevel) : null,
+        allowNegativeStock: formData.allowNegativeStock !== undefined ? formData.allowNegativeStock : true,
         subcategoryId: formData.subcategoryId || undefined,
         shelfId: formData.shelfId || undefined,
         description: formData.description || undefined,
@@ -127,8 +138,13 @@ export default function AddProductPage() {
         categoryId: validatedData.categoryId,
         subcategoryId: validatedData.subcategoryId || undefined,
         barcode: validatedData.barcode,
-        quantity: validatedData.quantity,
-        price: validatedData.price,
+        mrp: validatedData.mrp,
+        salePrice: validatedData.salePrice || null,
+        modelType: validatedData.modelType || null,
+        packType: validatedData.packType || null,
+        quantity: validatedData.quantity || 0,
+        minStockLevel: validatedData.minStockLevel || null,
+        allowNegativeStock: validatedData.allowNegativeStock !== undefined ? validatedData.allowNegativeStock : true,
         shelfId: validatedData.shelfId || null,
         description: validatedData.description || null,
         image: validatedData.image || null,
@@ -296,6 +312,80 @@ export default function AddProductPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
+                    <Label htmlFor="mrp">MRP (Maximum Retail Price)</Label>
+                    <Input
+                      id="mrp"
+                      type="number"
+                      step="0.01"
+                      placeholder="999.99"
+                      value={formData.mrp}
+                      onChange={(e) => handleChange('mrp', e.target.value)}
+                      className={errors.mrp ? 'border-destructive' : ''}
+                      required
+                    />
+                    {errors.mrp && (
+                      <p className="text-sm text-destructive">{errors.mrp}</p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="salePrice">Sale Price (Optional)</Label>
+                    <Input
+                      id="salePrice"
+                      type="number"
+                      step="0.01"
+                      placeholder="949.99"
+                      value={formData.salePrice}
+                      onChange={(e) => handleChange('salePrice', e.target.value)}
+                      className={errors.salePrice ? 'border-destructive' : ''}
+                    />
+                    {errors.salePrice && (
+                      <p className="text-sm text-destructive">{errors.salePrice}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Leave empty if no special offer price
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="modelType">Model Type</Label>
+                    <Select
+                      value={formData.modelType}
+                      onValueChange={(value) => handleChange('modelType', value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select model type (optional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="PLAIN">Plain</SelectItem>
+                        <SelectItem value="DESIGN">Design</SelectItem>
+                        <SelectItem value="TWO_D">2D</SelectItem>
+                        <SelectItem value="THREE_D">3D</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="packType">Pack Type</Label>
+                    <Select
+                      value={formData.packType}
+                      onValueChange={(value) => handleChange('packType', value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select pack type (optional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="PACK">Pack</SelectItem>
+                        <SelectItem value="LOOSE">Loose</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
                     <Label htmlFor="quantity">Quantity</Label>
                     <Input
                       id="quantity"
@@ -304,7 +394,6 @@ export default function AddProductPage() {
                       value={formData.quantity}
                       onChange={(e) => handleChange('quantity', e.target.value)}
                       className={errors.quantity ? 'border-destructive' : ''}
-                      required
                     />
                     {errors.quantity && (
                       <p className="text-sm text-destructive">{errors.quantity}</p>
@@ -312,20 +401,34 @@ export default function AddProductPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="price">Price/Value (USD)</Label>
+                    <Label htmlFor="minStockLevel">Minimum Stock Level (Optional)</Label>
                     <Input
-                      id="price"
+                      id="minStockLevel"
                       type="number"
-                      step="0.01"
-                      placeholder="4.99"
-                      value={formData.price}
-                      onChange={(e) => handleChange('price', e.target.value)}
-                      className={errors.price ? 'border-destructive' : ''}
-                      required
+                      placeholder="5"
+                      value={formData.minStockLevel}
+                      onChange={(e) => handleChange('minStockLevel', e.target.value)}
+                      className={errors.minStockLevel ? 'border-destructive' : ''}
                     />
-                    {errors.price && (
-                      <p className="text-sm text-destructive">{errors.price}</p>
+                    {errors.minStockLevel && (
+                      <p className="text-sm text-destructive">{errors.minStockLevel}</p>
                     )}
+                    <p className="text-xs text-muted-foreground">
+                      Override category default. Leave empty to use category default.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="allowNegativeStock"
+                      checked={formData.allowNegativeStock}
+                      onCheckedChange={(checked) => handleChange('allowNegativeStock', checked)}
+                    />
+                    <Label htmlFor="allowNegativeStock" className="font-normal cursor-pointer">
+                      Allow negative stock (allow sales when stock is 0)
+                    </Label>
                   </div>
                 </div>
 

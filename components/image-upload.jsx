@@ -1,16 +1,20 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Upload, X, Image as ImageIcon } from 'lucide-react';
+import { Upload, X, Image as ImageIcon, Camera } from 'lucide-react';
 import Image from 'next/image';
 
 export default function ImageUpload({ value, onChange, label = 'Product Image' }) {
   const [preview, setPreview] = useState(value || null);
   const [isUploading, setIsUploading] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
   const fileInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
 
   const handleFileSelect = async (e) => {
     const file = e.target.files?.[0];
@@ -68,6 +72,116 @@ export default function ImageUpload({ value, onChange, label = 'Product Image' }
     }
   };
 
+  const handleCameraClick = () => {
+    if (showCamera) {
+      // Stop camera stream if already showing
+      stopCamera();
+      setShowCamera(false);
+    } else {
+      // Start camera
+      startCamera();
+    }
+  };
+
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' } // Use back camera on mobile
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        setShowCamera(true);
+      }
+    } catch (error) {
+      console.error('Error accessing camera:', error);
+      alert('Unable to access camera. Please check permissions.');
+    }
+  };
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  };
+
+  const capturePhoto = () => {
+    if (!videoRef.current) return;
+
+    const video = videoRef.current;
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    // Convert to base64
+    const base64String = canvas.toDataURL('image/jpeg', 0.8);
+    setPreview(base64String);
+    onChange(base64String);
+    
+    // Stop camera
+    stopCamera();
+    setShowCamera(false);
+  };
+
+  const handleCameraFileSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Image size must be less than 5MB');
+      return;
+    }
+
+    setIsUploading(true);
+
+    try {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result;
+        setPreview(base64String);
+        onChange(base64String);
+        setIsUploading(false);
+      };
+      reader.onerror = () => {
+        alert('Failed to read image file');
+        setIsUploading(false);
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.error('Error processing image:', error);
+      alert('Failed to process image');
+      setIsUploading(false);
+    }
+  };
+
+  // Sync preview with value prop
+  useEffect(() => {
+    if (value !== preview) {
+      setPreview(value || null);
+    }
+  }, [value]);
+
+  // Cleanup camera stream on unmount
+  useEffect(() => {
+    return () => {
+      stopCamera();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <div className="space-y-2">
       <Label>{label}</Label>
@@ -94,35 +208,91 @@ export default function ImageUpload({ value, onChange, label = 'Product Image' }
           </div>
         )}
 
-        {/* Upload Options */}
+        {/* Upload Options - Two Column Layout */}
         <div className="space-y-2">
-          <div className="flex gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <Button
               type="button"
               variant="outline"
               onClick={() => fileInputRef.current?.click()}
               disabled={isUploading}
-              className="flex-1"
+              className="w-full"
             >
               <Upload className="h-4 w-4 mr-2" />
               {isUploading ? 'Uploading...' : 'Upload Image'}
             </Button>
-            {preview && (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleRemove}
-              >
-                <X className="h-4 w-4 mr-2" />
-                Remove
-              </Button>
-            )}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleCameraClick}
+              disabled={isUploading}
+              className="w-full"
+            >
+              <Camera className="h-4 w-4 mr-2" />
+              {showCamera ? 'Stop Camera' : 'Capture Image'}
+            </Button>
           </div>
+          
+          {/* Camera Preview */}
+          {showCamera && (
+            <div className="space-y-2">
+              <div className="relative w-full h-48 border rounded-lg overflow-hidden bg-black">
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="default"
+                  onClick={capturePhoto}
+                  className="flex-1"
+                >
+                  <Camera className="h-4 w-4 mr-2" />
+                  Capture Photo
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    stopCamera();
+                    setShowCamera(false);
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {preview && !showCamera && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleRemove}
+              className="w-full"
+            >
+              <X className="h-4 w-4 mr-2" />
+              Remove Image
+            </Button>
+          )}
+          
           <Input
             ref={fileInputRef}
             type="file"
             accept="image/*"
             onChange={handleFileSelect}
+            className="hidden"
+          />
+          <Input
+            ref={cameraInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handleCameraFileSelect}
             className="hidden"
           />
         </div>

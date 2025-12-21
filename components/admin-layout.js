@@ -18,6 +18,10 @@ import {
   FolderTree,
   CreditCard,
   FileSpreadsheet,
+  Building2,
+  ShoppingCart,
+  ArrowLeftRight,
+  Clock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,6 +40,12 @@ const NAV_ITEMS = [
   { name: 'Receipts', href: '/receipts', icon: CreditCard },
   // { name: 'Bulk Ops', href: '/bulk', icon: FileSpreadsheet },
   { name: 'Shelves', href: '/shelves', icon: Warehouse },
+  { name: 'Stores', href: '/stores', icon: Building2 },
+  { name: 'Counters', href: '/counters', icon: ShoppingCart },
+  { name: 'Stock Transfers', href: '/stock-transfers', icon: ArrowLeftRight },
+  { name: 'Shifts', href: '/shifts', icon: Clock },
+  { name: 'Reports', href: '/reports', icon: FileSpreadsheet },
+  { name: 'Returns', href: '/returns', icon: ArrowLeftRight },
   { name: 'Users', href: '/users', icon: Users },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
@@ -140,8 +150,8 @@ function AdminLayoutComponent({ children }) {
 
       <div className="flex">
         {/* Sidebar - Desktop */}
-        <aside className="hidden md:flex w-64 flex-col border-r bg-background min-h-[calc(100vh-4rem)]">
-          <nav className="flex-1 space-y-1 p-4">
+        <aside className="hidden md:flex w-64 flex-col border-r bg-background h-[calc(100vh-4rem)] sticky top-16">
+          <nav className="flex-1 space-y-1 p-4 overflow-y-auto">
             {NAV_ITEMS.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href;
@@ -163,7 +173,7 @@ function AdminLayoutComponent({ children }) {
               );
             })}
           </nav>
-          <div className="p-4 border-t">
+          <div className="p-4 border-t bg-background sticky bottom-0">
             <Button
               variant="ghost"
               className="w-full justify-start gap-3"
@@ -182,8 +192,8 @@ function AdminLayoutComponent({ children }) {
               className="fixed inset-0 bg-black/50"
               onClick={() => setMobileMenuOpen(false)}
             />
-            <aside className="fixed left-0 top-16 bottom-0 w-64 bg-background border-r">
-              <nav className="flex-1 space-y-1 p-4">
+            <aside className="fixed left-0 top-16 bottom-0 w-64 bg-background border-r flex flex-col">
+              <nav className="flex-1 space-y-1 p-4 overflow-y-auto">
                 {NAV_ITEMS.map((item) => {
                   const Icon = item.icon;
                   const isActive = pathname === item.href;
@@ -206,6 +216,19 @@ function AdminLayoutComponent({ children }) {
                   );
                 })}
               </nav>
+              <div className="p-4 border-t bg-background">
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start gap-3"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    logout();
+                  }}
+                >
+                  <LogOut className="h-5 w-5" />
+                  Logout
+                </Button>
+              </div>
             </aside>
           </div>
         )}

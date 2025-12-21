@@ -12,10 +12,8 @@ export default function CartSidebar() {
   const { cart, removeFromCart, updateQuantity, getCartTotal, getCartItemsCount, isCartOpen, setIsCartOpen } = useCart()
   const router = useRouter()
 
-  const handleCheckout = () => {
-    setIsCartOpen(false)
-    router.push('/checkout')
-  }
+  // Checkout removed - CRM is for inventory management only
+  // Billing/checkout will be in POS app (pooja-app)
 
   return (
     <Sheet open={isCartOpen} onOpenChange={setIsCartOpen}>
@@ -112,10 +110,10 @@ export default function CartSidebar() {
                     <span>${(getCartTotal() * 1.1).toFixed(2)}</span>
                   </div>
                 </div>
-                <Button className="w-full" size="lg" onClick={handleCheckout}>
-                  <Receipt className="h-4 w-4 mr-2" />
-                  Proceed to Checkout
-                </Button>
+                <div className="w-full p-3 bg-muted rounded-lg text-center text-sm text-muted-foreground">
+                  <p>Checkout is not available in CRM.</p>
+                  <p className="text-xs mt-1">Use POS app for billing and sales.</p>
+                </div>
               </SheetFooter>
             </>
           )}

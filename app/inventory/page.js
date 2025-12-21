@@ -44,19 +44,25 @@ import {
 } from '@/components/ui/dropdown-menu';
 import ImageUpload from '@/components/image-upload';
 import { Separator } from '@/components/ui/separator';
+import { Checkbox } from '@/components/ui/checkbox';
 import Loader from '@/components/ui/loader';
 import { useAuth } from '@/lib/auth-context';
 import { useCommon } from '@/lib/common-context';
-import { productsAPI } from '@/lib/api';
+import { productsAPI, storesAPI, storeInventoryAPI } from '@/lib/api';
 import logger from '@/lib/logger';
 import { productSchema, formatZodError, getFieldErrors } from '@/lib/validations';
+import { cleanShelfName } from '@/lib/utils';
+import ProductAttributes from '@/components/product-attributes';
 
 export default function InventoryPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [shelfFilter, setShelfFilter] = useState('all');
   const [stockFilter, setStockFilter] = useState('all');
+  const [storeFilter, setStoreFilter] = useState('all');
+  const [stores, setStores] = useState([]);
   const [products, setProducts] = useState([]);
+  const [storeInventory, setStoreInventory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingProduct, setEditingProduct] = useState(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -68,13 +74,19 @@ export default function InventoryPage() {
     categoryId: '',
     subcategoryId: '',
     barcode: '',
+    mrp: '',
+    salePrice: '',
+    modelType: '',
+    packType: '',
     quantity: '',
-    price: '',
+    minStockLevel: '',
+    allowNegativeStock: true,
     shelfId: '',
     description: '',
     image: '',
   });
   const [editSubcategories, setEditSubcategories] = useState([]);
+  const [isPrinting, setIsPrinting] = useState(false);
   const { user } = useAuth();
   const { categories } = useCommon();
 
@@ -87,13 +99,30 @@ export default function InventoryPage() {
     return Array.from(uniqueShelves);
   }, [products]);
 
+  const fetchStores = async () => {
+    if (!user?.token) return;
+    try {
+      const response = await storesAPI.getAll(user.token);
+      if (response.success) {
+        setStores(response.data || []);
+      }
+    } catch (error) {
+      logger.error('Error fetching stores:', error);
+    }
+  };
+
   const fetchProducts = async () => {
     if (!user?.token) return;
     try {
       setLoading(true);
-      const response = await productsAPI.getAll(user.token, { limit: 100 });
+      const response = await productsAPI.getAll(user.token, { limit: 1000 });
       if (response.success) {
-        setProducts(response.data || []);
+        // Ensure productAttributes is included in the response
+        const productsWithAttributes = (response.data?.products || response.data || []).map(product => ({
+          ...product,
+          productAttributes: product.productAttributes || []
+        }));
+        setProducts(productsWithAttributes);
       } else {
         toast.error(response.message || 'Failed to load products');
       }
@@ -105,17 +134,75 @@ export default function InventoryPage() {
     }
   };
 
+  const fetchStoreInventory = async (storeId) => {
+    if (!user?.token || !storeId) return;
+    try {
+      setLoading(true);
+      const response = await storeInventoryAPI.getStoreInventory(storeId, user.token);
+      if (response.success) {
+        setStoreInventory(response.data || []);
+      } else {
+        toast.error(response.message || 'Failed to load store inventory');
+      }
+    } catch (error) {
+      logger.error('Error fetching store inventory:', error);
+      toast.error('Failed to load store inventory');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (user?.token) {
+      fetchStores();
       fetchProducts();
     }
   }, [user?.token]);
 
+  useEffect(() => {
+    if (user?.token && storeFilter !== 'all') {
+      fetchStoreInventory(storeFilter);
+    } else {
+      setStoreInventory([]);
+    }
+  }, [user?.token, storeFilter]);
+
+  // Merge store inventory with products when store filter is active
+  const productsWithStoreInventory = useMemo(() => {
+    if (storeFilter === 'all') {
+      return products;
+    }
+
+    // Create a map of productId -> store inventory
+    const inventoryMap = new Map();
+    storeInventory.forEach((inv) => {
+      inventoryMap.set(inv.productId, inv);
+    });
+
+    // Merge products with store inventory
+    return products.map((product) => {
+      const storeInv = inventoryMap.get(product.id);
+      if (storeInv) {
+        return {
+          ...product,
+          quantity: storeInv.quantity,
+          storeInventory: storeInv,
+        };
+      }
+      return {
+        ...product,
+        quantity: 0,
+        storeInventory: null,
+      };
+    });
+  }, [products, storeInventory, storeFilter]);
+
   const filteredProducts = useMemo(() => {
-    return products.filter((product) => {
+    return productsWithStoreInventory.filter((product) => {
       const matchesSearch =
         product.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        product.barcode?.includes(searchTerm);
+        product.barcode?.includes(searchTerm) ||
+        product.sku?.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCategory =
         categoryFilter === 'all' ||
         product.categoryId === categoryFilter ||
@@ -131,7 +218,7 @@ export default function InventoryPage() {
 
       return matchesSearch && matchesCategory && matchesShelf && matchesStock;
     });
-  }, [products, searchTerm, categoryFilter, shelfFilter, stockFilter]);
+  }, [productsWithStoreInventory, searchTerm, categoryFilter, shelfFilter, stockFilter]);
 
   const handleDelete = async (id) => {
     if (!user?.token) return;
@@ -159,108 +246,495 @@ export default function InventoryPage() {
     setSelectedProduct(null);
   };
 
-  const handlePrintProduct = (product) => {
+  const handlePrintProduct = async (product) => {
     if (typeof window === 'undefined' || !product || !product.barcode) {
       toast.error('No barcode available to print');
       return;
     }
 
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      toast.error('Please allow popups to print barcode labels');
+    if (isPrinting) {
+      toast.info('Print in progress, please wait...');
       return;
     }
 
-    printWindow.document.write(`
+    setIsPrinting(true);
+    const loadingToast = toast.loading('Generating barcode label...');
+
+    try {
+      // Get store information (use first store or default)
+      const store = stores.length > 0 ? stores[0] : null;
+      const storeName = store?.name || 'STORE';
+      const storeLocation = store?.city || '';
+      const storePhone = store?.contact ? `Ph: ${store.contact}` : '';
+      const storeInfo = [storeLocation, storePhone].filter(Boolean).join('. ');
+
+      const productName = product.name || 'PRODUCT';
+      const shelfName = product.shelf?.name || product.shelfId || '';
+      const cleanedShelfName = cleanShelfName(shelfName);
+      const productNameWithShelf = cleanedShelfName ? `${productName} - ${cleanedShelfName}` : productName;
+      const productCode = product.sku || product.barcode || '';
+      const sellingPrice = product.salePrice || product.price || product.mrp || 0;
+      const mrp = product.mrp || 0;
+      // Use "SHW" for Showroom price (first 3 letters of store name, or default to SHW)
+      const storeCode = storeName.substring(0, 3).toUpperCase() === 'BRA' ? 'SHW' : (storeName.substring(0, 3).toUpperCase() || 'SHW');
+
+      // Generate barcode SVG in the main window first
+      let barcodeSvg = '';
+      
+      try {
+        // Load JsBarcode if not already loaded
+        if (typeof window.JsBarcode === 'undefined') {
+        const loadPromise = new Promise((resolve, reject) => {
+          // Set timeout for script loading (10 seconds)
+          const timeout = setTimeout(() => {
+            reject(new Error('Timeout: JsBarcode library took too long to load'));
+          }, 10000);
+
+          // Check if script already exists
+          const existingScript = document.querySelector('script[src*="jsbarcode"]');
+          if (existingScript) {
+            if (window.JsBarcode) {
+              clearTimeout(timeout);
+              resolve();
+              return;
+            }
+            existingScript.addEventListener('load', () => {
+              clearTimeout(timeout);
+              setTimeout(() => resolve(), 100);
+            });
+            existingScript.addEventListener('error', () => {
+              clearTimeout(timeout);
+              reject(new Error('Failed to load JsBarcode library'));
+            });
+            return;
+          }
+
+          const script = document.createElement('script');
+          script.src = 'https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js';
+          script.onload = () => {
+            clearTimeout(timeout);
+            // Wait a bit for the library to initialize
+            setTimeout(() => resolve(), 100);
+          };
+          script.onerror = () => {
+            clearTimeout(timeout);
+            reject(new Error('Failed to load JsBarcode library from CDN'));
+          };
+          document.head.appendChild(script);
+        });
+
+        await loadPromise;
+
+          // Double check it's loaded
+          if (typeof window.JsBarcode === 'undefined') {
+            throw new Error('JsBarcode library not available after loading');
+          }
+        }
+
+        // Create a temporary SVG element to generate the barcode
+        const tempSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        tempSvg.setAttribute('id', 'temp-barcode-svg');
+        tempSvg.style.position = 'absolute';
+        tempSvg.style.left = '-9999px';
+        tempSvg.style.top = '-9999px';
+        tempSvg.style.visibility = 'hidden';
+        document.body.appendChild(tempSvg);
+
+        try {
+          // Wait a moment for the element to be in the DOM
+          await new Promise(resolve => setTimeout(resolve, 50));
+
+          // Generate barcode using the element directly
+          const barcodeValue = String(product.barcode || '').trim();
+          if (!barcodeValue) {
+            throw new Error('Barcode value is empty');
+          }
+
+          window.JsBarcode(tempSvg, barcodeValue, {
+            format: "CODE128",
+            width: 2,
+            height: 75,
+            displayValue: false,
+            margin: 4,
+            background: "#ffffff",
+            lineColor: "#000000"
+          });
+
+          // Wait a bit for rendering
+          await new Promise(resolve => setTimeout(resolve, 150));
+
+          // Get the SVG HTML
+          if (tempSvg.innerHTML && tempSvg.innerHTML.trim()) {
+            // Get the inner content (the actual barcode paths)
+            const innerContent = tempSvg.innerHTML;
+            // Get attributes
+            const viewBox = tempSvg.getAttribute('viewBox') || '0 0 200 100';
+            const width = tempSvg.getAttribute('width') || '100%';
+            const height = tempSvg.getAttribute('height') || 'auto';
+            // Reconstruct the SVG with proper class - escape any special characters
+            barcodeSvg = `<svg viewBox="${viewBox}" width="${width}" height="${height}" class="barcode-svg" xmlns="http://www.w3.org/2000/svg">${innerContent}</svg>`;
+            console.log('Barcode SVG generated successfully, length:', barcodeSvg.length);
+          } else {
+            console.error('Barcode SVG is empty. innerHTML:', tempSvg.innerHTML);
+            throw new Error('Barcode SVG is empty - generation may have failed');
+          }
+        } finally {
+          // Always cleanup the temporary SVG
+          if (document.body.contains(tempSvg)) {
+            document.body.removeChild(tempSvg);
+          }
+        }
+
+        // Validate barcode SVG was generated
+        if (!barcodeSvg || barcodeSvg.trim() === '') {
+          throw new Error('Barcode SVG is empty after generation');
+        }
+      } catch (error) {
+        console.error('Error generating barcode:', error);
+        toast.dismiss(loadingToast);
+        toast.error(`Failed to generate barcode: ${error.message}. Please check your internet connection and try again.`);
+        setIsPrinting(false);
+        return;
+      }
+
+      // Escape special characters in template string values
+      const escapeHtml = (str) => {
+        if (!str) return '';
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+      };
+
+      // Escape all values before using in template
+      const escapedStoreName = escapeHtml(storeName);
+      const escapedStoreInfo = storeInfo ? escapeHtml(storeInfo) : '';
+      const escapedProductName = escapeHtml(productNameWithShelf);
+      const escapedProductCode = productCode ? escapeHtml(productCode) : '';
+      const escapedStoreCode = escapeHtml(storeCode);
+      const escapedBarcode = escapeHtml(product.barcode || '');
+
+      toast.dismiss(loadingToast);
+      toast.success('Barcode generated! Opening print dialog...');
+
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        throw new Error('Failed to open print window - popups may be blocked');
+      }
+
+      const htmlContent = `
       <!DOCTYPE html>
       <html>
         <head>
           <title>Barcode Label - ${product.barcode}</title>
-          <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
           <style>
-            @media print {
-              @page {
-                margin: 0.5in;
-                size: auto;
-              }
-              body {
-                margin: 0;
-                padding: 0;
-              }
+            * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
             }
+            
             body {
               font-family: Arial, sans-serif;
+              background: white;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              min-height: 100vh;
+              padding: 20px;
+            }
+
+            .barcode-label {
+              width: 3.5in;
+              height: 2in;
+              padding: 6px 8px;
+              background: white;
+              border: 1px solid #ddd;
               display: flex;
               flex-direction: column;
-              align-items: center;
-              justify-content: center;
-              min-height: 100vh;
-              margin: 0;
-              padding: 20px;
-              background: white;
+              position: relative;
+              box-sizing: border-box;
+              overflow: hidden;
             }
+
+            .label-header {
+              display: flex;
+              justify-content: space-between;
+              align-items: flex-start;
+              margin-bottom: 4px;
+              flex-shrink: 0;
+            }
+
+            .store-name {
+              font-size: 11px;
+              font-weight: bold;
+              text-transform: uppercase;
+              line-height: 1.1;
+              flex: 1;
+            }
+
+            .store-address {
+              font-size: 7px;
+              color: #333;
+              text-align: right;
+              line-height: 1.1;
+              flex-shrink: 0;
+              margin-left: 4px;
+            }
+
+            .product-name {
+              font-size: 10px;
+              font-weight: bold;
+              margin-bottom: 3px;
+              text-transform: uppercase;
+              line-height: 1.1;
+              flex-shrink: 0;
+              word-wrap: break-word;
+              overflow-wrap: break-word;
+            }
+
             .barcode-container {
               display: flex;
               flex-direction: column;
               align-items: center;
-              justify-content: center;
-              padding: 20px;
+              margin: 3px 0;
+              flex-shrink: 0;
             }
-            #barcode-svg {
-              margin: 0 auto;
-              display: block;
+
+            .barcode-svg {
+              max-width: 100%;
+              max-height: 75px;
+              height: auto;
+              width: auto;
             }
+
             .barcode-number {
-              margin-top: 10px;
-              font-size: 18px;
-              font-weight: 600;
-              letter-spacing: 0.15em;
+              font-size: 12px;
               font-family: 'Courier New', monospace;
+              color: #333;
+              margin-bottom: 2px;
               text-align: center;
+              letter-spacing: 0.3px;
+            }
+
+            .sku-code {
+              font-size: 10px;
+              font-family: 'Courier New', monospace;
+              color: #333;
+              margin-bottom: 3px;
+              text-align: center;
+              flex-shrink: 0;
+            }
+
+            .pricing-section {
+              margin-top: auto;
+              flex-shrink: 0;
+            }
+
+            .price-row {
+              display: flex;
+              align-items: baseline;
+              margin-bottom: 2px;
+              gap: 8px;
+            }
+
+            .price-row.selling-price {
+              margin-bottom: 2px;
+            }
+
+            .price-label {
+              font-weight: 600;
+              font-size: 9px;
+            }
+
+            .price-value {
+              font-weight: bold;
+            }
+
+            .price-value.selling-price {
+              font-size: 14px;
+              font-weight: bold;
+            }
+
+            .price-value.mrp {
+              font-size: 10px;
+            }
+
+            .tax-info {
+              font-size: 10px;
+              color: #666;
+              margin-top: 2px;
+              font-weight: 500;
+            }
+
+            @media print {
+              body {
+                margin: 0;
+                padding: 0;
+              }
+
+              .barcode-label {
+                width: 3.5in;
+                height: 2in;
+                page-break-inside: avoid;
+                border: none;
+                margin: 0;
+                padding: 6px 8px;
+                box-sizing: border-box;
+              }
+
+              @page {
+                size: 3.5in 2in;
+                margin: 0;
+              }
             }
           </style>
         </head>
         <body>
-          <div class="barcode-container">
-            <svg id="barcode-svg"></svg>
-            <div class="barcode-number">${product.barcode}</div>
+          <div class="barcode-label">
+            <!-- Header: Logo/Shop Name and Address (right aligned) -->
+            <div class="label-header">
+              <div class="store-name">${escapedStoreName}®</div>
+              ${escapedStoreInfo ? `<div class="store-address">${escapedStoreInfo}</div>` : ''}
+            </div>
+
+            <!-- Product Name -->
+            <div class="product-name">${escapedProductName}</div>
+
+            <!-- Barcode -->
+            <div class="barcode-container">
+              ${barcodeSvg}
+              <div class="barcode-number">${escapedBarcode}</div>
+            </div>
+
+            <!-- SKU Code -->
+            ${escapedProductCode ? `<div class="sku-code">${escapedProductCode}</div>` : ''}
+
+            <!-- Pricing Section (Below SKU) -->
+            <div class="pricing-section">
+              <div class="price-row selling-price">
+                <span class="price-label">${escapedStoreCode} Rs.:</span>
+                <span class="price-value selling-price">₹${Number(sellingPrice).toFixed(2)}</span>
+              </div>
+              <div class="price-row">
+                <span class="price-label">MRP Rs.:</span>
+                <span class="price-value mrp">₹${Number(mrp).toFixed(2)}</span>
+              </div>
+              <div class="tax-info">(Incl of All Taxes) MHS</div>
+            </div>
           </div>
           <script>
-            try {
-              JsBarcode("#barcode-svg", "${product.barcode}", {
-                format: "CODE128",
-                width: 2,
-                height: 100,
-                displayValue: false,
-                margin: 10,
-                background: "#ffffff",
-                lineColor: "#000000"
-              });
+            // Wait for content to load, then print
+            if (document.readyState === 'complete') {
+              setTimeout(function() {
+                window.print();
+                // Close the window after a delay to allow print dialog to show
+                setTimeout(function() {
+                  window.close();
+                }, 500);
+              }, 300);
+            } else {
               window.onload = function() {
                 setTimeout(function() {
                   window.print();
-                }, 250);
+                  // Close the window after a delay to allow print dialog to show
+                  setTimeout(function() {
+                    window.close();
+                  }, 500);
+                }, 300);
               };
-            } catch (error) {
-              console.error('Barcode generation error:', error);
-              document.body.innerHTML = '<p style="text-align:center;padding:20px;">Error generating barcode. Please try again.</p>';
             }
           </script>
         </body>
       </html>
-    `);
-    printWindow.document.close();
+      `;
+      
+      try {
+        // Write content to print window
+        printWindow.document.open('text/html', 'replace');
+        printWindow.document.write(htmlContent);
+        printWindow.document.close();
+        
+        // Wait for window to load, then verify content
+        printWindow.onload = () => {
+          setTimeout(() => {
+            if (printWindow.document && printWindow.document.body) {
+              const bodyContent = printWindow.document.body.innerHTML.trim();
+              if (bodyContent === '' || bodyContent.length < 100) {
+                console.error('Print window is empty! Body content length:', bodyContent.length);
+                toast.error('Failed to load print content. Please try again.');
+                printWindow.close();
+                setIsPrinting(false);
+              } else {
+                console.log('Print window content loaded successfully, length:', bodyContent.length);
+                // Content is loaded, print will be triggered by the script in the HTML
+              }
+            }
+          }, 100);
+        };
+        
+        // Fallback: if onload doesn't fire, check after a delay
+        setTimeout(() => {
+          if (printWindow.document && printWindow.document.body) {
+            const bodyContent = printWindow.document.body.innerHTML.trim();
+            if (bodyContent === '' || bodyContent.length < 100) {
+              console.error('Print window still empty after timeout');
+              // Try to write again
+              try {
+                printWindow.document.open();
+                printWindow.document.write(htmlContent);
+                printWindow.document.close();
+              } catch (retryError) {
+                console.error('Retry failed:', retryError);
+                toast.error('Failed to load print content. Please try again.');
+                printWindow.close();
+              }
+            }
+          }
+          // Reset printing state
+          setIsPrinting(false);
+        }, 2000);
+      } catch (error) {
+        console.error('Error in print process:', error);
+        toast.dismiss(loadingToast);
+        toast.error(`Failed to print barcode: ${error.message}. Please try again.`);
+        setIsPrinting(false);
+        if (typeof printWindow !== 'undefined' && printWindow) {
+          try {
+            printWindow.close();
+          } catch (closeError) {
+            console.error('Error closing window:', closeError);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error in print process:', error);
+      toast.dismiss(loadingToast);
+      toast.error(`Failed to print barcode: ${error.message}. Please try again.`);
+      setIsPrinting(false);
+    }
   };
 
   const handleEdit = (product) => {
+    // Close detail modal if it's open
+    if (isDetailOpen) {
+      closeProductDetail();
+    }
     setEditingProduct(product);
     setFormData({
       name: product.name || '',
       categoryId: product.categoryId || '',
       subcategoryId: product.subcategoryId || '',
       barcode: product.barcode || '',
+      mrp: product.mrp?.toString() || '',
+      salePrice: product.salePrice?.toString() || '',
+      modelType: product.modelType || '',
+      packType: product.packType || '',
       quantity: product.quantity?.toString() || '',
-      price: product.price?.toString() || '',
+      minStockLevel: product.minStockLevel?.toString() || '',
+      allowNegativeStock: product.allowNegativeStock !== undefined ? product.allowNegativeStock : true,
       shelfId: product.shelfId || '',
       description: product.description || '',
       image: product.image || '',
@@ -281,8 +755,13 @@ export default function InventoryPage() {
       // Prepare data for validation
       const dataToValidate = {
         ...formData,
+        mrp: formData.mrp ? Number(formData.mrp) : 0,
+        salePrice: formData.salePrice ? Number(formData.salePrice) : null,
+        modelType: formData.modelType || null,
+        packType: formData.packType || null,
         quantity: formData.quantity ? Number(formData.quantity) : 0,
-        price: formData.price ? Number(formData.price) : 0,
+        minStockLevel: formData.minStockLevel ? Number(formData.minStockLevel) : null,
+        allowNegativeStock: formData.allowNegativeStock !== undefined ? formData.allowNegativeStock : true,
         subcategoryId: formData.subcategoryId || undefined,
         shelfId: formData.shelfId || undefined,
         description: formData.description || undefined,
@@ -309,8 +788,13 @@ export default function InventoryPage() {
         categoryId: validatedData.categoryId,
         subcategoryId: validatedData.subcategoryId || undefined,
         barcode: validatedData.barcode,
-        quantity: validatedData.quantity,
-        price: validatedData.price,
+        mrp: validatedData.mrp,
+        salePrice: validatedData.salePrice || null,
+        modelType: validatedData.modelType || null,
+        packType: validatedData.packType || null,
+        quantity: validatedData.quantity || 0,
+        minStockLevel: validatedData.minStockLevel || null,
+        allowNegativeStock: validatedData.allowNegativeStock !== undefined ? validatedData.allowNegativeStock : true,
         shelfId: validatedData.shelfId || null,
         description: validatedData.description || null,
         image: validatedData.image || null,
@@ -388,7 +872,7 @@ export default function InventoryPage() {
           {/* Filters */}
           <Card>
             <CardContent className="pt-6">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                 <div className="relative">
                   <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -437,6 +921,19 @@ export default function InventoryPage() {
                     <SelectItem value="out">Out of Stock</SelectItem>
                   </SelectContent>
                 </Select>
+                <Select value={storeFilter} onValueChange={setStoreFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Filter by Store" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Stores (Global)</SelectItem>
+                    {stores.map((store) => (
+                      <SelectItem key={store.id} value={store.id}>
+                        {store.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </CardContent>
           </Card>
@@ -452,12 +949,14 @@ export default function InventoryPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Image</TableHead>
+                      <TableHead>SKU</TableHead>
                       <TableHead>Product Name</TableHead>
                       <TableHead>Category</TableHead>
                       <TableHead>Barcode</TableHead>
+                      <TableHead>Model</TableHead>
                       <TableHead>Quantity</TableHead>
-                      <TableHead>Shelf Location</TableHead>
                       <TableHead>Price</TableHead>
+                      <TableHead>Shelf</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -467,9 +966,13 @@ export default function InventoryPage() {
                         const categoryName = product.category?.name || '—';
                         const shelfName =
                           product.shelf?.name || product.shelfId || '—';
-                        const productPrice = Number(product.price || 0);
+                        const mrp = Number(product.mrp || 0);
+                        const salePrice = product.salePrice ? Number(product.salePrice) : null;
+                        const displayPrice = salePrice || mrp;
                         const imageSrc =
                           product.image || '/images/product-placeholder.png';
+                        const modelTypeLabel = product.modelType ? 
+                          product.modelType.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) : '—';
                         return (
                           <TableRow
                             key={product.id}
@@ -495,6 +998,9 @@ export default function InventoryPage() {
                                 />
                               </div>
                             </TableCell>
+                            <TableCell className="font-mono text-sm text-muted-foreground">
+                              {product.sku || '—'}
+                            </TableCell>
                             <TableCell className="font-medium">
                               {product.name}
                             </TableCell>
@@ -503,6 +1009,12 @@ export default function InventoryPage() {
                             </TableCell>
                             <TableCell className="text-muted-foreground font-mono text-sm">
                               {product.barcode}
+                            </TableCell>
+                            <TableCell>
+                              {modelTypeLabel !== '—' && (
+                                <Badge variant="secondary">{modelTypeLabel}</Badge>
+                              )}
+                              {modelTypeLabel === '—' && '—'}
                             </TableCell>
                             <TableCell>
                               <Badge
@@ -515,11 +1027,22 @@ export default function InventoryPage() {
                                 {product.quantity}
                               </Badge>
                             </TableCell>
+                            <TableCell className="font-medium">
+                              {salePrice ? (
+                                <div>
+                                  <span className="line-through text-muted-foreground text-sm">
+                                    ${mrp.toFixed(2)}
+                                  </span>
+                                  <span className="ml-2 text-destructive font-semibold">
+                                    ${salePrice.toFixed(2)}
+                                  </span>
+                                </div>
+                              ) : (
+                                `$${displayPrice.toFixed(2)}`
+                              )}
+                            </TableCell>
                             <TableCell className="font-mono">
                               {shelfName}
-                            </TableCell>
-                            <TableCell className="font-medium">
-                              ${productPrice.toFixed(2)}
                             </TableCell>
                             <TableCell>
                               <div data-row-action="true">
@@ -531,13 +1054,19 @@ export default function InventoryPage() {
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent>
                                     <DropdownMenuItem
-                                      onClick={() => handleEdit(product)}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleEdit(product);
+                                      }}
                                     >
                                       Edit
                                     </DropdownMenuItem>
                                     <DropdownMenuItem
                                       className="text-destructive"
-                                      onClick={() => handleDelete(product.id)}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDelete(product.id);
+                                      }}
                                     >
                                       Delete
                                     </DropdownMenuItem>
@@ -551,7 +1080,7 @@ export default function InventoryPage() {
                     ) : (
                       <TableRow>
                         <TableCell
-                          colSpan={8}
+                          colSpan={10}
                           className="text-center py-8 text-muted-foreground"
                         >
                           No products found matching your filters.
@@ -565,9 +1094,15 @@ export default function InventoryPage() {
               <div className="flex items-center justify-between mt-4">
                 <div className="text-sm text-muted-foreground">
                   Showing {filteredProducts.length} of {products.length} products
+                  {storeFilter !== 'all' && (
+                    <span className="ml-2">
+                      (Store: {stores.find((s) => s.id === storeFilter)?.name || 'Unknown'})
+                    </span>
+                  )}
                 </div>
                 <div className="text-xs text-muted-foreground">
                   Tip: Click a product row for details and barcode label.
+                  {storeFilter !== 'all' && ' Quantities shown are store-specific.'}
                 </div>
               </div>
             </CardContent>
@@ -577,7 +1112,7 @@ export default function InventoryPage() {
 
       {/* Edit Modal */}
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Product</DialogTitle>
             <DialogDescription>
@@ -599,68 +1134,124 @@ export default function InventoryPage() {
               )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="categoryId">Category</Label>
-                <Select
-                  value={formData.categoryId}
-                  onValueChange={(value) => handleFormChange('categoryId', value)}
-                >
-                  <SelectTrigger className={editErrors.categoryId ? 'border-destructive' : ''}>
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories?.map((cat) => (
-                      <SelectItem key={cat.id} value={cat.id}>
-                        {cat.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {editErrors.categoryId && (
-                  <p className="text-sm text-destructive">{editErrors.categoryId}</p>
-                )}
+            {/* 3-Column Layout for Product Information */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Column 1: Basic Information */}
+              <div className="space-y-4 min-w-0">
+                <div className="space-y-2">
+                  <Label htmlFor="categoryId">Category</Label>
+                  <Select
+                    value={formData.categoryId}
+                    onValueChange={(value) => handleFormChange('categoryId', value)}
+                  >
+                    <SelectTrigger className={editErrors.categoryId ? 'border-destructive' : ''}>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories?.map((cat) => (
+                        <SelectItem key={cat.id} value={cat.id}>
+                          {cat.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {editErrors.categoryId && (
+                    <p className="text-sm text-destructive">{editErrors.categoryId}</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="subcategoryId">Subcategory</Label>
+                  <Select
+                    value={formData.subcategoryId}
+                    onValueChange={(value) =>
+                      handleFormChange('subcategoryId', value)
+                    }
+                    disabled={!formData.categoryId}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select subcategory" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {editSubcategories.map((subcat) => (
+                        <SelectItem key={subcat.id} value={subcat.id}>
+                          {subcat.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="barcode">Barcode</Label>
+                  <Input
+                    id="barcode"
+                    value={formData.barcode}
+                    onChange={(e) => handleFormChange('barcode', e.target.value)}
+                    className={editErrors.barcode ? 'border-destructive' : ''}
+                    required
+                  />
+                  {editErrors.barcode && (
+                    <p className="text-sm text-destructive">{editErrors.barcode}</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="shelfId">Shelf Location</Label>
+                  <Select
+                    value={formData.shelfId}
+                    onValueChange={(value) => handleFormChange('shelfId', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select shelf location" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {shelves.map((shelf) => (
+                        <SelectItem key={shelf} value={shelf}>
+                          {shelf}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="subcategoryId">Subcategory</Label>
-                <Select
-                  value={formData.subcategoryId}
-                  onValueChange={(value) =>
-                    handleFormChange('subcategoryId', value)
-                  }
-                  disabled={!formData.categoryId}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select subcategory" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {editSubcategories.map((subcat) => (
-                      <SelectItem key={subcat.id} value={subcat.id}>
-                        {subcat.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+              {/* Column 2: Pricing & Stock */}
+              <div className="space-y-4 min-w-0">
+                <div className="space-y-2">
+                  <Label htmlFor="mrp">MRP (Maximum Retail Price)</Label>
+                  <Input
+                    id="mrp"
+                    type="number"
+                    step="0.01"
+                    value={formData.mrp}
+                    onChange={(e) => handleFormChange('mrp', e.target.value)}
+                    className={editErrors.mrp ? 'border-destructive' : ''}
+                    required
+                  />
+                  {editErrors.mrp && (
+                    <p className="text-sm text-destructive">{editErrors.mrp}</p>
+                  )}
+                </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="barcode">Barcode</Label>
-                <Input
-                  id="barcode"
-                  value={formData.barcode}
-                  onChange={(e) => handleFormChange('barcode', e.target.value)}
-                  className={editErrors.barcode ? 'border-destructive' : ''}
-                  required
-                />
-                {editErrors.barcode && (
-                  <p className="text-sm text-destructive">{editErrors.barcode}</p>
-                )}
-              </div>
+                <div className="space-y-2">
+                  <Label htmlFor="salePrice">Sale Price (Optional)</Label>
+                  <Input
+                    id="salePrice"
+                    type="number"
+                    step="0.01"
+                    value={formData.salePrice}
+                    onChange={(e) => handleFormChange('salePrice', e.target.value)}
+                    className={editErrors.salePrice ? 'border-destructive' : ''}
+                  />
+                  {editErrors.salePrice && (
+                    <p className="text-sm text-destructive">{editErrors.salePrice}</p>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Leave empty if no special offer price
+                  </p>
+                </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="quantity">Quantity</Label>
                   <Input
@@ -671,7 +1262,6 @@ export default function InventoryPage() {
                       handleFormChange('quantity', e.target.value)
                     }
                     className={editErrors.quantity ? 'border-destructive' : ''}
-                    required
                   />
                   {editErrors.quantity && (
                     <p className="text-sm text-destructive">{editErrors.quantity}</p>
@@ -679,42 +1269,75 @@ export default function InventoryPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="price">Price/Value (USD)</Label>
+                  <Label htmlFor="minStockLevel">Minimum Stock Level (Optional)</Label>
                   <Input
-                    id="price"
+                    id="minStockLevel"
                     type="number"
-                    step="0.01"
-                    value={formData.price}
-                    onChange={(e) => handleFormChange('price', e.target.value)}
-                    className={editErrors.price ? 'border-destructive' : ''}
-                    required
+                    value={formData.minStockLevel}
+                    onChange={(e) => handleFormChange('minStockLevel', e.target.value)}
+                    className={editErrors.minStockLevel ? 'border-destructive' : ''}
                   />
-                  {editErrors.price && (
-                    <p className="text-sm text-destructive">{editErrors.price}</p>
+                  {editErrors.minStockLevel && (
+                    <p className="text-sm text-destructive">{editErrors.minStockLevel}</p>
                   )}
+                  <p className="text-xs text-muted-foreground">
+                    Override category default. Leave empty to use category default.
+                  </p>
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="shelfId">Shelf Location</Label>
-                <Select
-                  value={formData.shelfId}
-                  onValueChange={(value) => handleFormChange('shelfId', value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select shelf location" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {shelves.map((shelf) => (
-                      <SelectItem key={shelf} value={shelf}>
-                        {shelf}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              {/* Column 3: Product Attributes */}
+              <div className="space-y-4 min-w-0">
+                <div className="space-y-2">
+                  <Label htmlFor="modelType">Model Type</Label>
+                  <Select
+                    value={formData.modelType}
+                    onValueChange={(value) => handleFormChange('modelType', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select model type (optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="PLAIN">Plain</SelectItem>
+                      <SelectItem value="DESIGN">Design</SelectItem>
+                      <SelectItem value="TWO_D">2D</SelectItem>
+                      <SelectItem value="THREE_D">3D</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="packType">Pack Type</Label>
+                  <Select
+                    value={formData.packType}
+                    onValueChange={(value) => handleFormChange('packType', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select pack type (optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="PACK">Pack</SelectItem>
+                      <SelectItem value="LOOSE">Loose</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="allowNegativeStock"
+                      checked={formData.allowNegativeStock}
+                      onCheckedChange={(checked) => handleFormChange('allowNegativeStock', checked)}
+                    />
+                    <Label htmlFor="allowNegativeStock" className="font-normal cursor-pointer">
+                      Allow negative stock
+                    </Label>
+                  </div>
+                </div>
               </div>
             </div>
 
+            {/* Full-width fields */}
             <div className="space-y-2">
               <Label htmlFor="description">Description/Notes</Label>
               <Textarea
@@ -732,6 +1355,16 @@ export default function InventoryPage() {
               onChange={(value) => handleFormChange('image', value)}
               label="Product Image"
             />
+
+            {editingProduct && editingProduct.id && (
+              <div className="space-y-4 border-t pt-4">
+                <ProductAttributes
+                  productId={editingProduct.id}
+                  token={user?.token}
+                  readonly={false}
+                />
+              </div>
+            )}
 
             <div className="flex gap-4 justify-end">
               <Button
@@ -754,7 +1387,7 @@ export default function InventoryPage() {
           if (!open) closeProductDetail();
         }}
       >
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Product Details</DialogTitle>
             <DialogDescription>
@@ -762,11 +1395,17 @@ export default function InventoryPage() {
             </DialogDescription>
           </DialogHeader>
           {selectedProduct && (
-            <div className="grid grid-cols-1 md:grid-cols-[2fr,1.5fr] gap-6 mt-2">
-              <div className="space-y-3 text-sm">
+            <div className="space-y-6 mt-2">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Column 1: Basic Information */}
+              <div className="space-y-3 text-sm min-w-0">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Name</span>
                   <span className="font-medium">{selectedProduct.name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">SKU</span>
+                  <span className="font-mono font-medium">{selectedProduct.sku || '—'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Category</span>
@@ -780,35 +1419,51 @@ export default function InventoryPage() {
                     {selectedProduct.subcategory?.name || '—'}
                   </span>
                 </div>
+                {selectedProduct.category && (
+                  <>
+                    <Separator />
+                    <div className="space-y-2">
+                      <div className="text-xs font-semibold text-muted-foreground uppercase">Category GST Info</div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">HSN Code</span>
+                        <span className="font-medium">{selectedProduct.category.hsnCode || '—'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">GST Rate</span>
+                        <span className="font-medium">{selectedProduct.category.gstRate || 0}%</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">GST Inclusive</span>
+                        <span className="font-medium">
+                          {selectedProduct.category.gstInclusive ? 'Yes' : 'No'}
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                )}
+                <Separator />
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Model Type</span>
+                  <span className="font-medium">
+                    {selectedProduct.modelType 
+                      ? selectedProduct.modelType.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())
+                      : '—'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Pack Type</span>
+                  <span className="font-medium">
+                    {selectedProduct.packType 
+                      ? selectedProduct.packType.charAt(0) + selectedProduct.packType.slice(1).toLowerCase()
+                      : '—'}
+                  </span>
+                </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Shelf</span>
                   <span className="font-medium">
                     {selectedProduct.shelf?.name ||
                       selectedProduct.shelfId ||
                       '—'}
-                  </span>
-                </div>
-                <Separator />
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Quantity</span>
-                  <span className="font-medium">
-                    {selectedProduct.quantity}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Unit Price</span>
-                  <span className="font-medium">
-                    ${Number(selectedProduct.price || 0).toFixed(2)}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Total Value</span>
-                  <span className="font-bold">
-                    $
-                    {(
-                      Number(selectedProduct.price || 0) *
-                      Number(selectedProduct.quantity || 0)
-                    ).toFixed(2)}
                   </span>
                 </div>
                 {selectedProduct.description && (
@@ -824,47 +1479,214 @@ export default function InventoryPage() {
                 )}
               </div>
 
-              <div className="flex flex-col items-center justify-between gap-4 border rounded-lg p-4">
-                <div className="w-full text-center">
-                  <p className="text-xs text-muted-foreground mb-2">
-                    Barcode Number
-                  </p>
-                  <p className="font-mono text-lg tracking-[0.2em] font-semibold">
+              {/* Column 2: Additional Details */}
+              <div className="space-y-3 text-sm min-w-0">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Barcode</span>
+                  <span className="font-mono font-medium break-all text-right">
                     {selectedProduct.barcode || '—'}
-                  </p>
+                  </span>
                 </div>
-                <div className="w-full flex-1 flex items-center justify-center bg-white p-4 rounded-md border">
-                  {selectedProduct.barcode ? (
-                    <div className="flex flex-col items-center gap-2">
-                      <Barcode
-                        value={selectedProduct.barcode}
-                        format="CODE128"
-                        width={2}
-                        height={80}
-                        displayValue={true}
-                        fontSize={14}
-                        margin={10}
-                      />
-                      <p className="text-xs text-muted-foreground mt-2">
-                        Scan this barcode with your scanner
-                      </p>
+                {selectedProduct.barcode && (
+                  <>
+                    <Separator />
+                    <div className="space-y-2">
+                      <div className="text-xs text-muted-foreground text-center">
+                        Label Preview (3.5" × 2")
+                      </div>
+                      <div className="border rounded p-2 bg-white" style={{ 
+                        width: '100%', 
+                        aspectRatio: '3.5/2',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        padding: '6px 8px',
+                        boxSizing: 'border-box'
+                      }}>
+                        {/* Header: Shop Name and Address */}
+                        <div className="flex justify-between items-start mb-1">
+                          <div className="font-bold text-[10px] uppercase leading-tight">
+                            {stores.length > 0 ? stores[0].name : 'STORE'}®
+                          </div>
+                          <div className="text-[6px] text-gray-700 text-right leading-tight">
+                            {stores.length > 0 && stores[0].city ? stores[0].city : ''}
+                            {stores.length > 0 && stores[0].contact ? `. Ph: ${stores[0].contact}` : ''}
+                          </div>
+                        </div>
+
+                        {/* Product Name */}
+                        <div className="font-bold text-[9px] uppercase leading-tight mb-1">
+                          {(() => {
+                            const shelfName = selectedProduct.shelf?.name || selectedProduct.shelfId || '';
+                            const cleanedShelfName = cleanShelfName(shelfName);
+                            return cleanedShelfName 
+                              ? `${selectedProduct.name} - ${cleanedShelfName}`
+                              : selectedProduct.name;
+                          })()}
+                        </div>
+
+                        {/* Barcode */}
+                        <div className="flex flex-col items-center mb-1" style={{ maxHeight: '75px', overflow: 'hidden' }}>
+                          <Barcode
+                            value={selectedProduct.barcode}
+                            format="CODE128"
+                            width={1.8}
+                            height={50}
+                            displayValue={false}
+                            fontSize={10}
+                            margin={4}
+                          />
+                          <div className="font-mono text-gray-700 mt-1" style={{ fontSize: '12px' }}>
+                            {selectedProduct.barcode}
+                          </div>
+                        </div>
+
+                        {/* SKU Code */}
+                        {selectedProduct.sku && (
+                          <div className="font-mono text-gray-700 text-center mb-1" style={{ fontSize: '12px' }}>
+                            {selectedProduct.sku}
+                          </div>
+                        )}
+
+                        {/* Pricing Section (Below SKU) */}
+                        <div className="mt-auto space-y-0.5">
+                          <div className="flex items-baseline gap-2">
+                            <span className="font-semibold text-[8px]">
+                              {(() => {
+                                const storeName = stores.length > 0 ? stores[0].name : 'STORE';
+                                const code = storeName.substring(0, 3).toUpperCase();
+                                return code === 'BRA' ? 'SHW' : (code || 'SHW');
+                              })()} Rs.:
+                            </span>
+                            <span className="font-bold text-sm">
+                              ₹{Number(selectedProduct.salePrice || selectedProduct.price || selectedProduct.mrp || 0).toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="flex items-baseline gap-2">
+                            <span className="font-semibold text-[8px]">MRP Rs.:</span>
+                            <span className="font-bold text-[10px]">
+                              ₹{Number(selectedProduct.mrp || 0).toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="text-[7px] text-gray-600 font-medium">(Incl of All Taxes) MHS</div>
+                        </div>
+                      </div>
+                      <Button
+                        className="w-full"
+                        variant="default"
+                        onClick={() => handlePrintProduct(selectedProduct)}
+                        size="sm"
+                        disabled={isPrinting}
+                      >
+                        <Printer className="h-4 w-4 mr-2" />
+                        {isPrinting ? 'Generating...' : 'Print Barcode Label'}
+                      </Button>
                     </div>
-                  ) : (
-                    <p className="text-xs text-muted-foreground text-center">
-                      No barcode available for this product
-                    </p>
-                  )}
-                </div>
-                <Button
-                  className="w-full"
-                  variant="outline"
-                  onClick={() => handlePrintProduct(selectedProduct)}
-                  disabled={!selectedProduct.barcode}
-                >
-                  <Printer className="h-4 w-4 mr-2" />
-                  Print Barcode Label
-                </Button>
+                  </>
+                )}
+                {selectedProduct.image && (
+                  <>
+                    <Separator />
+                    <div className="space-y-2">
+                      <span className="text-muted-foreground block">Product Image</span>
+                      <div className="relative w-full h-48 border rounded-lg overflow-hidden bg-muted">
+                        <Image
+                          src={selectedProduct.image}
+                          alt={selectedProduct.name}
+                          fill
+                          className="object-contain"
+                          unoptimized
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
+
+              {/* Column 3: Stock & Inventory Info */}
+              <div className="space-y-3 text-sm min-w-0">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Stock Status</span>
+                  <Badge
+                    variant={
+                      selectedProduct.quantity <= (selectedProduct.minStockLevel || 0)
+                        ? 'destructive'
+                        : selectedProduct.quantity > (selectedProduct.minStockLevel || 0) * 2
+                        ? 'default'
+                        : 'secondary'
+                    }
+                  >
+                    {selectedProduct.quantity <= (selectedProduct.minStockLevel || 0)
+                      ? 'Low Stock'
+                      : 'In Stock'}
+                  </Badge>
+                </div>
+                <Separator />
+                <div className="space-y-2">
+                  <div className="text-xs font-semibold text-muted-foreground uppercase">Inventory Summary</div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Available Qty</span>
+                    <span className="font-medium">{selectedProduct.quantity || 0}</span>
+                  </div>
+                  {selectedProduct.minStockLevel && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Min Stock Level</span>
+                      <span className="font-medium">{selectedProduct.minStockLevel}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Allow Negative</span>
+                    <span className="font-medium">
+                      {selectedProduct.allowNegativeStock ? 'Yes' : 'No'}
+                    </span>
+                  </div>
+                </div>
+                <Separator />
+                <div className="space-y-2">
+                  <div className="text-xs font-semibold text-muted-foreground uppercase">Pricing Summary</div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">MRP</span>
+                    <span className="font-medium">
+                      ${Number(selectedProduct.mrp || 0).toFixed(2)}
+                    </span>
+                  </div>
+                  {selectedProduct.salePrice && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Sale Price</span>
+                      <span className="font-medium text-destructive">
+                        ${Number(selectedProduct.salePrice).toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Current Price</span>
+                    <span className="font-medium">
+                      ${Number(selectedProduct.price || 0).toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between pt-2 border-t">
+                    <span className="text-muted-foreground font-semibold">Total Value</span>
+                    <span className="font-bold">
+                      $
+                      {(
+                        Number(selectedProduct.price || 0) *
+                        Number(selectedProduct.quantity || 0)
+                      ).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              </div>
+
+              {/* Product Attributes Section */}
+              {selectedProduct.id && (
+                <div className="border-t pt-4">
+                  <ProductAttributes
+                    productId={selectedProduct.id}
+                    token={user?.token}
+                    readonly={false}
+                  />
+                </div>
+              )}
             </div>
           )}
         </DialogContent>
