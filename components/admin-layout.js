@@ -22,6 +22,7 @@ import {
   ShoppingCart,
   ArrowLeftRight,
   Clock,
+  Printer,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -46,6 +47,7 @@ const NAV_ITEMS = [
   { name: 'Shifts', href: '/shifts', icon: Clock },
   { name: 'Reports', href: '/reports', icon: FileSpreadsheet },
   { name: 'Returns', href: '/returns', icon: ArrowLeftRight },
+  { name: 'Print Barcodes', href: '/print-barcodes', icon: Printer },
   { name: 'Users', href: '/users', icon: Users },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];

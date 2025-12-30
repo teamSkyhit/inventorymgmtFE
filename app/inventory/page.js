@@ -35,6 +35,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { toast } from 'sonner';
 import Barcode from 'react-barcode';
+import BarcodeLabel from '@/components/barcode-label';
 import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
@@ -87,6 +88,8 @@ export default function InventoryPage() {
   });
   const [editSubcategories, setEditSubcategories] = useState([]);
   const [isPrinting, setIsPrinting] = useState(false);
+  const [previewProduct, setPreviewProduct] = useState(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const { user } = useAuth();
   const { categories } = useCommon();
 
@@ -246,6 +249,15 @@ export default function InventoryPage() {
     setSelectedProduct(null);
   };
 
+  const handlePreviewProduct = (product) => {
+    if (!product || !product.barcode) {
+      toast.error('No barcode available to preview');
+      return;
+    }
+    setPreviewProduct(product);
+    setIsPreviewOpen(true);
+  };
+
   const handlePrintProduct = async (product) => {
     if (typeof window === 'undefined' || !product || !product.barcode) {
       toast.error('No barcode available to print');
@@ -352,8 +364,8 @@ export default function InventoryPage() {
 
           window.JsBarcode(tempSvg, barcodeValue, {
             format: "CODE128",
-            width: 2,
-            height: 75,
+            width: 1.5,
+            height: 40,
             displayValue: false,
             margin: 4,
             background: "#ffffff",
@@ -447,9 +459,9 @@ export default function InventoryPage() {
             }
 
             .barcode-label {
-              width: 3.5in;
-              height: 2in;
-              padding: 6px 8px;
+              width: 2in;
+              height: 1in;
+              padding: 2px 4px;
               background: white;
               border: 1px solid #ddd;
               display: flex;
@@ -463,69 +475,86 @@ export default function InventoryPage() {
               display: flex;
               justify-content: space-between;
               align-items: flex-start;
-              margin-bottom: 4px;
+              margin-bottom: 1px;
               flex-shrink: 0;
             }
 
             .store-name {
-              font-size: 11px;
+              font-size: 8px;
               font-weight: bold;
               text-transform: uppercase;
               line-height: 1.1;
               flex: 1;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              white-space: nowrap;
             }
 
             .store-address {
-              font-size: 7px;
+              font-size: 6px;
               color: #333;
               text-align: right;
-              line-height: 1.1;
+              line-height: 1;
               flex-shrink: 0;
               margin-left: 4px;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              white-space: nowrap;
             }
 
             .product-name {
-              font-size: 10px;
+              font-size: 7px;
               font-weight: bold;
-              margin-bottom: 3px;
+              margin-bottom: 1px;
               text-transform: uppercase;
               line-height: 1.1;
               flex-shrink: 0;
               word-wrap: break-word;
               overflow-wrap: break-word;
+              word-break: break-word;
+              white-space: normal;
+              max-width: 100%;
+              display: block;
+              overflow: hidden;
+              max-height: 16px;
             }
 
             .barcode-container {
               display: flex;
               flex-direction: column;
               align-items: center;
-              margin: 3px 0;
+              margin: 1px 0;
               flex-shrink: 0;
             }
 
             .barcode-svg {
               max-width: 100%;
-              max-height: 75px;
+              max-height: 25px;
               height: auto;
               width: auto;
             }
 
             .barcode-number {
-              font-size: 12px;
+              font-size: 6px;
               font-family: 'Courier New', monospace;
               color: #333;
-              margin-bottom: 2px;
+              margin-bottom: 1px;
               text-align: center;
-              letter-spacing: 0.3px;
+              letter-spacing: 0.1px;
+              line-height: 1;
             }
 
             .sku-code {
-              font-size: 10px;
+              font-size: 6px;
               font-family: 'Courier New', monospace;
               color: #333;
-              margin-bottom: 3px;
+              margin-bottom: 1px;
               text-align: center;
               flex-shrink: 0;
+              line-height: 1;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              white-space: nowrap;
             }
 
             .pricing-section {
@@ -536,17 +565,19 @@ export default function InventoryPage() {
             .price-row {
               display: flex;
               align-items: baseline;
-              margin-bottom: 2px;
-              gap: 8px;
+              margin-bottom: 1px;
+              gap: 3px;
+              line-height: 1.1;
             }
 
             .price-row.selling-price {
-              margin-bottom: 2px;
+              margin-bottom: 1px;
             }
 
             .price-label {
               font-weight: 600;
-              font-size: 9px;
+              font-size: 6px;
+              white-space: nowrap;
             }
 
             .price-value {
@@ -554,19 +585,20 @@ export default function InventoryPage() {
             }
 
             .price-value.selling-price {
-              font-size: 14px;
+              font-size: 8px;
               font-weight: bold;
             }
 
             .price-value.mrp {
-              font-size: 10px;
+              font-size: 7px;
             }
 
             .tax-info {
-              font-size: 10px;
+              font-size: 5px;
               color: #666;
-              margin-top: 2px;
+              margin-top: 1px;
               font-weight: 500;
+              line-height: 1;
             }
 
             @media print {
@@ -576,17 +608,18 @@ export default function InventoryPage() {
               }
 
               .barcode-label {
-                width: 3.5in;
-                height: 2in;
+                width: 2in;
+                height: 1in;
                 page-break-inside: avoid;
                 border: none;
                 margin: 0;
-                padding: 6px 8px;
+                padding: 2px 4px;
                 box-sizing: border-box;
+                overflow: hidden;
               }
 
               @page {
-                size: 3.5in 2in;
+                size: 2in 1in;
                 margin: 0;
               }
             }
@@ -1573,12 +1606,12 @@ export default function InventoryPage() {
                       <Button
                         className="w-full"
                         variant="default"
-                        onClick={() => handlePrintProduct(selectedProduct)}
+                        onClick={() => handlePreviewProduct(selectedProduct)}
                         size="sm"
                         disabled={isPrinting}
                       >
                         <Printer className="h-4 w-4 mr-2" />
-                        {isPrinting ? 'Generating...' : 'Print Barcode Label'}
+                        {isPrinting ? 'Generating...' : 'Preview & Print Barcode'}
                       </Button>
                     </div>
                   </>
@@ -1687,6 +1720,60 @@ export default function InventoryPage() {
                   />
                 </div>
               )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Barcode Preview Modal */}
+      <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Barcode Label Preview</DialogTitle>
+            <DialogDescription>
+              Preview the barcode label before printing. Size: 2in × 1in
+            </DialogDescription>
+          </DialogHeader>
+          {previewProduct && (
+            <div className="space-y-4">
+              <div className="flex flex-col items-center gap-4">
+                <div className="text-sm text-muted-foreground text-center">
+                  Preview (scaled for visibility) • Actual print size: 2in × 1in
+                </div>
+                <div className="flex justify-center items-center bg-gray-50 p-8 rounded-lg border-2 border-dashed border-gray-300 min-h-[200px]">
+                  <div className="scale-[2.5] origin-center">
+                    <BarcodeLabel 
+                      product={previewProduct} 
+                      store={stores.length > 0 ? stores[0] : null}
+                      productName={(() => {
+                        const productName = previewProduct.name || 'PRODUCT';
+                        const shelfName = previewProduct.shelf?.name || previewProduct.shelfId || '';
+                        const cleanedShelfName = cleanShelfName(shelfName);
+                        return cleanedShelfName ? `${productName} - ${cleanedShelfName}` : productName;
+                      })()}
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-2 justify-end pt-2 border-t">
+                <Button
+                  variant="outline"
+                  onClick={() => setIsPreviewOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="default"
+                  onClick={() => {
+                    setIsPreviewOpen(false);
+                    handlePrintProduct(previewProduct);
+                  }}
+                  disabled={isPrinting}
+                >
+                  <Printer className="h-4 w-4 mr-2" />
+                  {isPrinting ? 'Printing...' : 'Print'}
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>
