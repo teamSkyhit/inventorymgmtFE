@@ -3,3 +3,4 @@ DB_NAME=your_database_name
 NEXT_PUBLIC_BASE_URL=https://drcdnzib9gu5w.cloudfront.net
 CORS_ORIGINS=*
 BASE_URL=http://localhost:4000/
+
