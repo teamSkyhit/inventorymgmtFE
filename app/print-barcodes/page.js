@@ -173,8 +173,8 @@ export default function PrintBarcodesPage() {
 
           JsBarcode(tempSvg, barcodeValue, {
             format: 'CODE128',
-            width: 1.2,
-            height: 30,
+            width: 1.5,
+            height: 40,
             displayValue: false,
             margin: 2,
             background: '#ffffff',
@@ -217,7 +217,7 @@ export default function PrintBarcodesPage() {
 
       const storeName = store?.name || 'STORE';
       const storeLocation = store?.city || '';
-      const storePhone = store?.contact ? `Ph: ${store.contact}` : '';
+      const storePhone = '+91 9701702827';
       const storeInfo = [storeLocation, storePhone].filter(Boolean).join('. ');
       const storeCode = storeName.substring(0, 3).toUpperCase() === 'BRA' ? 'SHW' : (storeName.substring(0, 3).toUpperCase() || 'SHW');
 
@@ -245,13 +245,12 @@ export default function PrintBarcodesPage() {
         return `
           <div class="barcode-label">
             <div class="label-header">
-              <div class="store-name">${escapeHtml(storeName)}®</div>
-              ${storeInfo ? `<div class="store-address">${escapeHtml(storeInfo)}</div>` : ''}
+              <div class="store-name">SRI GAYATRI POOJA STORES</div>
+              ${storePhone ? `<div class="store-phone">${escapeHtml(storePhone)}</div>` : ''}
             </div>
             <div class="product-name">${escapeHtml(productNameWithShelf)}</div>
             <div class="barcode-container">
               ${barcodeSvg}
-              <div class="barcode-number">${escapeHtml(product.barcode || '')}</div>
             </div>
             ${productCode ? `<div class="sku-code">${escapeHtml(productCode)}</div>` : ''}
             <div class="pricing-section">
@@ -259,11 +258,11 @@ export default function PrintBarcodesPage() {
                 <span class="price-label">${escapeHtml(storeCode)} Rs.:</span>
                 <span class="price-value selling-price">₹${Number(sellingPrice).toFixed(2)}</span>
               </div>
-              <div class="price-row">
+              <div class="price-row mrp-row">
                 <span class="price-label">MRP Rs.:</span>
                 <span class="price-value mrp">₹${Number(mrp).toFixed(2)}</span>
+                <span class="tax-info">(Incl of All Taxes) MHS</span>
               </div>
-              <div class="tax-info">(Incl of All Taxes) MHS</div>
             </div>
           </div>
         `;
@@ -289,8 +288,8 @@ export default function PrintBarcodesPage() {
 
               .labels-container {
                 display: grid;
-                grid-template-columns: 2in 2in;
-                gap: 10px;
+                grid-template-columns: 2in;
+                gap: 18px;
                 justify-content: center;
               }
 
@@ -317,31 +316,28 @@ export default function PrintBarcodesPage() {
               }
 
               .store-name {
-                font-size: 8px;
+                font-size: 7px;
                 font-weight: bold;
                 text-transform: uppercase;
                 line-height: 1.1;
-                flex: 1;
+                margin-bottom: 0;
                 overflow: hidden;
                 text-overflow: ellipsis;
                 white-space: nowrap;
               }
 
-              .store-address {
+              .store-phone {
                 font-size: 6px;
-                color: #333;
+                font-weight: bold;
                 text-align: right;
-                line-height: 1;
-                flex-shrink: 0;
-                margin-left: 4px;
-                overflow: hidden;
-                text-overflow: ellipsis;
+                line-height: 1.1;
                 white-space: nowrap;
               }
 
               .product-name {
                 font-size: 7px;
                 font-weight: bold;
+                margin-top: 4px;
                 margin-bottom: 1px;
                 text-transform: uppercase;
                 line-height: 1.1;
@@ -354,6 +350,7 @@ export default function PrintBarcodesPage() {
                 display: block;
                 overflow: hidden;
                 max-height: 16px;
+                text-align: center;
               }
 
               .barcode-container {
@@ -366,15 +363,16 @@ export default function PrintBarcodesPage() {
 
               .barcode-svg {
                 max-width: 100%;
-                max-height: 25px;
+                max-height: 35px;
                 height: auto;
                 width: auto;
               }
 
               .barcode-number {
-                font-size: 6px;
+                font-size: 7px;
+                font-weight: bold;
                 font-family: 'Courier New', monospace;
-                color: #333;
+                color: #000;
                 margin-bottom: 1px;
                 text-align: center;
                 letter-spacing: 0.1px;
@@ -382,9 +380,9 @@ export default function PrintBarcodesPage() {
               }
 
               .sku-code {
-                font-size: 6px;
-                font-family: 'Courier New', monospace;
-                color: #333;
+                font-size: 7px;
+                font-weight: bold;
+                color: #000;
                 margin-bottom: 1px;
                 text-align: center;
                 flex-shrink: 0;
@@ -411,9 +409,13 @@ export default function PrintBarcodesPage() {
                 margin-bottom: 1px;
               }
 
+              .price-row.mrp-row {
+                justify-content: space-between;
+              }
+
               .price-label {
-                font-weight: 600;
-                font-size: 6px;
+                font-weight: bold;
+                font-size: 8px;
                 white-space: nowrap;
               }
 
@@ -422,20 +424,22 @@ export default function PrintBarcodesPage() {
               }
 
               .price-value.selling-price {
-                font-size: 8px;
+                font-size: 9px;
                 font-weight: bold;
               }
 
               .price-value.mrp {
-                font-size: 7px;
+                font-size: 8px;
+                font-weight: bold;
               }
 
               .tax-info {
-                font-size: 5px;
-                color: #666;
-                margin-top: 1px;
-                font-weight: 500;
+                font-size: 6px;
+                font-weight: bold;
+                color: #000;
                 line-height: 1;
+                white-space: nowrap;
+                margin-left: auto;
               }
 
               @media print {
@@ -445,8 +449,8 @@ export default function PrintBarcodesPage() {
                 }
 
                 .labels-container {
-                  grid-template-columns: 2in 2in;
-                  gap: 0;
+                  grid-template-columns: 2in;
+                  gap: 18px;
                 }
 
                 .barcode-label {
@@ -461,7 +465,7 @@ export default function PrintBarcodesPage() {
                 }
 
                 @page {
-                  size: letter landscape;
+                  size: letter;
                   margin: 0.5in;
                 }
               }
@@ -665,12 +669,12 @@ export default function PrintBarcodesPage() {
               <DialogHeader>
                 <DialogTitle>Barcode Labels Preview</DialogTitle>
                 <DialogDescription>
-                  Preview of {selectedProducts.size} barcode label(s). Layout: 2 columns, 2 labels per row.
+                  Preview of {selectedProducts.size} barcode label(s). Layout: 1 column, 1 label per row.
                 </DialogDescription>
               </DialogHeader>
               {getSelectedProductsList().length > 0 && (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+                  <div className="grid grid-cols-1 gap-[18px] p-4 bg-gray-50 rounded-lg">
                     {getSelectedProductsList().map((product) => {
                       const shelfName = product.shelf?.name || product.shelfId || '';
                       const cleanedShelfName = cleanShelfName(shelfName);

@@ -277,7 +277,7 @@ export default function InventoryPage() {
       const store = stores.length > 0 ? stores[0] : null;
       const storeName = store?.name || 'STORE';
       const storeLocation = store?.city || '';
-      const storePhone = store?.contact ? `Ph: ${store.contact}` : '';
+      const storePhone = '+91 9701702827';
       const storeInfo = [storeLocation, storePhone].filter(Boolean).join('. ');
 
       const productName = product.name || 'PRODUCT';
@@ -367,7 +367,7 @@ export default function InventoryPage() {
             width: 1.5,
             height: 40,
             displayValue: false,
-            margin: 4,
+            margin: 2,
             background: "#ffffff",
             lineColor: "#000000"
           });
@@ -480,31 +480,28 @@ export default function InventoryPage() {
             }
 
             .store-name {
-              font-size: 8px;
+              font-size: 7px;
               font-weight: bold;
               text-transform: uppercase;
               line-height: 1.1;
-              flex: 1;
+              margin-bottom: 0;
               overflow: hidden;
               text-overflow: ellipsis;
               white-space: nowrap;
             }
 
-            .store-address {
+            .store-phone {
               font-size: 6px;
-              color: #333;
+              font-weight: bold;
               text-align: right;
-              line-height: 1;
-              flex-shrink: 0;
-              margin-left: 4px;
-              overflow: hidden;
-              text-overflow: ellipsis;
+              line-height: 1.1;
               white-space: nowrap;
             }
 
             .product-name {
               font-size: 7px;
               font-weight: bold;
+              margin-top: 4px;
               margin-bottom: 1px;
               text-transform: uppercase;
               line-height: 1.1;
@@ -517,6 +514,7 @@ export default function InventoryPage() {
               display: block;
               overflow: hidden;
               max-height: 16px;
+              text-align: center;
             }
 
             .barcode-container {
@@ -529,15 +527,16 @@ export default function InventoryPage() {
 
             .barcode-svg {
               max-width: 100%;
-              max-height: 25px;
+              max-height: 35px;
               height: auto;
               width: auto;
             }
 
             .barcode-number {
-              font-size: 6px;
+              font-size: 7px;
+              font-weight: bold;
               font-family: 'Courier New', monospace;
-              color: #333;
+              color: #000;
               margin-bottom: 1px;
               text-align: center;
               letter-spacing: 0.1px;
@@ -545,9 +544,9 @@ export default function InventoryPage() {
             }
 
             .sku-code {
-              font-size: 6px;
-              font-family: 'Courier New', monospace;
-              color: #333;
+              font-size: 7px;
+              font-weight: bold;
+              color: #000;
               margin-bottom: 1px;
               text-align: center;
               flex-shrink: 0;
@@ -574,9 +573,13 @@ export default function InventoryPage() {
               margin-bottom: 1px;
             }
 
+            .price-row.mrp-row {
+              justify-content: space-between;
+            }
+
             .price-label {
-              font-weight: 600;
-              font-size: 6px;
+              font-weight: bold;
+              font-size: 8px;
               white-space: nowrap;
             }
 
@@ -585,20 +588,22 @@ export default function InventoryPage() {
             }
 
             .price-value.selling-price {
-              font-size: 8px;
+              font-size: 9px;
               font-weight: bold;
             }
 
             .price-value.mrp {
-              font-size: 7px;
+              font-size: 8px;
+              font-weight: bold;
             }
 
             .tax-info {
-              font-size: 5px;
-              color: #666;
-              margin-top: 1px;
-              font-weight: 500;
+              font-size: 6px;
+              font-weight: bold;
+              color: #000;
               line-height: 1;
+              white-space: nowrap;
+              margin-left: auto;
             }
 
             @media print {
@@ -627,10 +632,10 @@ export default function InventoryPage() {
         </head>
         <body>
           <div class="barcode-label">
-            <!-- Header: Logo/Shop Name and Address (right aligned) -->
+            <!-- Header: Store Name and Phone -->
             <div class="label-header">
-              <div class="store-name">${escapedStoreName}®</div>
-              ${escapedStoreInfo ? `<div class="store-address">${escapedStoreInfo}</div>` : ''}
+              <div class="store-name">SRI GAYATRI POOJA STORES</div>
+              ${storePhone ? `<div class="store-phone">${escapeHtml(storePhone)}</div>` : ''}
             </div>
 
             <!-- Product Name -->
@@ -639,7 +644,6 @@ export default function InventoryPage() {
             <!-- Barcode -->
             <div class="barcode-container">
               ${barcodeSvg}
-              <div class="barcode-number">${escapedBarcode}</div>
             </div>
 
             <!-- SKU Code -->
@@ -651,11 +655,11 @@ export default function InventoryPage() {
                 <span class="price-label">${escapedStoreCode} Rs.:</span>
                 <span class="price-value selling-price">₹${Number(sellingPrice).toFixed(2)}</span>
               </div>
-              <div class="price-row">
+              <div class="price-row mrp-row">
                 <span class="price-label">MRP Rs.:</span>
                 <span class="price-value mrp">₹${Number(mrp).toFixed(2)}</span>
+                <span class="tax-info">(Incl of All Taxes) MHS</span>
               </div>
-              <div class="tax-info">(Incl of All Taxes) MHS</div>
             </div>
           </div>
           <script>

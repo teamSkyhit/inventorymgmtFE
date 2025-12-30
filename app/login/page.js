@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Package } from 'lucide-react'
 import { toast } from 'sonner'
+import Image from 'next/image'
 import Loader from '@/components/ui/loader'
 import { loginSchema, formatZodError, getFieldErrors } from '@/lib/validations'
 import logger from '@/lib/logger'
@@ -102,11 +103,14 @@ export default function LoginPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-4">
           <div className="flex justify-center">
-            <div className="bg-primary text-primary-foreground p-3 rounded-full">
-              <Package className="h-8 w-8" />
-            </div>
+            <Image
+              src="/logo.png"
+              alt="Logo"
+              width={128}
+              height={128}
+              className="w-[8rem] h-[8rem] object-contain"
+            />
           </div>
-          <CardTitle className="text-2xl font-bold">UniTrack Inventory System</CardTitle>
           <CardDescription>Welcome back! Please login to your account.</CardDescription>
         </CardHeader>
         <CardContent>
@@ -166,12 +170,6 @@ export default function LoginPage() {
               {loading ? 'Logging in...' : 'Login'}
             </Button>
           </form>
-
-          <div className="mt-4 text-center text-sm text-muted-foreground">
-            <p>Demo credentials:</p>
-            <p>Admin: admin@example.com / any password</p>
-            <p>User: user@example.com / any password</p>
-          </div>
         </CardContent>
       </Card>
     </div>

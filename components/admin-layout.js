@@ -4,6 +4,7 @@ import { memo, useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   LayoutDashboard,
   Package,
@@ -98,7 +99,7 @@ function AdminLayoutComponent({ children }) {
       )}
       {/* Top Navigation Bar */}
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="flex h-16 items-center px-4 gap-4 justify-between">
+        <div className="flex h-28 items-center px-4 gap-4 justify-between">
           {/* Left: Mobile menu + logo */}
           <div className="flex items-center gap-3 min-w-[140px]">
             <Button
@@ -111,10 +112,16 @@ function AdminLayoutComponent({ children }) {
             </Button>
             <Link
               href="/dashboard"
-              className="flex items-center gap-2 font-bold text-xl"
+              className="flex items-center gap-3 font-bold"
             >
-              <Package className="h-6 w-6 text-primary" />
-              <span className="hidden sm:inline">UniTrackInventory</span>
+              <Image
+                src="/logo.png"
+                alt="Logo"
+                width={96}
+                height={96}
+                className="w-[6rem] h-[6rem] object-contain"
+              />
+              <span className="text-lg sm:text-3xl">SRI GAYATRI POOJA STORES</span>
             </Link>
           </div>
 

@@ -3,6 +3,7 @@
 import { useAuth } from '@/lib/auth-context'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { Scan, TrendingUp, User as UserIcon, Package, LogOut } from 'lucide-react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -50,10 +51,16 @@ export default function UserLayout({ children }) {
       )}
       {/* Top Bar */}
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="flex h-16 items-center px-4 justify-between">
-          <Link href="/scan" className="flex items-center gap-2 font-bold text-xl">
-            <Package className="h-6 w-6 text-primary" />
-            <span>UniTrackInventory</span>
+        <div className="flex h-28 items-center px-4 justify-between">
+          <Link href="/scan" className="flex items-center gap-3 font-bold">
+            <Image
+              src="/logo.png"
+              alt="Logo"
+              width={96}
+              height={96}
+              className="w-[6rem] h-[6rem] object-contain"
+            />
+            <span className="text-lg sm:text-xl">SRI GAYATRI POOJA STORES</span>
           </Link>
           <div className="flex items-center gap-3">
             <Button

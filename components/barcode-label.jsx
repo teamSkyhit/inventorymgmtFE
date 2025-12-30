@@ -18,8 +18,8 @@ export default function BarcodeLabel({ product, store, productName }) {
             barcodeRef.current.innerHTML = '';
             window.JsBarcode(barcodeRef.current, String(product.barcode), {
               format: 'CODE128',
-              width: 1.2,
-              height: 30,
+              width: 1.5,
+              height: 40,
               displayValue: false,
               fontSize: 8,
               margin: 2,
@@ -58,7 +58,7 @@ export default function BarcodeLabel({ product, store, productName }) {
 
   const storeName = store?.name || 'STORE';
   const storeLocation = store?.city || '';
-  const storePhone = store?.contact ? `Ph: ${store.contact}` : '';
+  const storePhone = '+91 9701702827';
   const storeInfo = [storeLocation, storePhone].filter(Boolean).join('. ');
 
   const displayProductName = productName || product.name || 'PRODUCT';
@@ -98,22 +98,21 @@ export default function BarcodeLabel({ product, store, productName }) {
         }
 
         .store-name {
-          font-size: 8px;
+          font-size: 7px;
           font-weight: bold;
-          margin-bottom: 0;
           text-transform: uppercase;
           line-height: 1.1;
+          margin-bottom: 0;
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
         }
 
-        .store-details {
+        .store-phone {
           font-size: 6px;
-          color: #333;
-          line-height: 1;
-          overflow: hidden;
-          text-overflow: ellipsis;
+          font-weight: bold;
+          text-align: right;
+          line-height: 1.1;
           white-space: nowrap;
         }
 
@@ -138,7 +137,8 @@ export default function BarcodeLabel({ product, store, productName }) {
 
         .product-name {
           font-size: 7px;
-          font-weight: 600;
+          font-weight: bold;
+          margin-top: 4px;
           margin-bottom: 1px;
           text-transform: uppercase;
           line-height: 1.1;
@@ -150,13 +150,14 @@ export default function BarcodeLabel({ product, store, productName }) {
           display: block;
           overflow: hidden;
           max-height: 16px;
+          text-align: center;
         }
 
         .product-code {
-          font-size: 6px;
-          color: #666;
+          font-size: 7px;
+          font-weight: bold;
+          color: #000;
           margin-bottom: 1px;
-          font-family: 'Courier New', monospace;
           line-height: 1;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -165,7 +166,7 @@ export default function BarcodeLabel({ product, store, productName }) {
 
         .pricing-info {
           margin-top: auto;
-          font-size: 6px;
+          font-size: 8px;
           flex-shrink: 0;
         }
 
@@ -176,21 +177,29 @@ export default function BarcodeLabel({ product, store, productName }) {
           line-height: 1.1;
         }
 
+        .price-row.mrp-row {
+          justify-content: space-between;
+        }
+
         .price-label {
-          font-weight: 600;
+          font-weight: bold;
+          font-size: 8px;
           white-space: nowrap;
         }
 
         .price-value {
           font-weight: bold;
+          font-size: 9px;
           white-space: nowrap;
         }
 
         .tax-info {
-          font-size: 5px;
-          color: #666;
-          margin-top: 1px;
+          font-size: 6px;
+          font-weight: bold;
+          color: #000;
           line-height: 1;
+          white-space: nowrap;
+          margin-left: auto;
         }
 
         .barcode-section {
@@ -205,17 +214,9 @@ export default function BarcodeLabel({ product, store, productName }) {
 
         .barcode-svg {
           max-width: 100%;
-          max-height: 25px;
+          max-height: 35px;
           height: auto;
           width: auto;
-        }
-
-        .barcode-code {
-          font-size: 6px;
-          color: #666;
-          margin-top: 1px;
-          text-align: center;
-          line-height: 1;
         }
 
         @media print {
@@ -242,12 +243,14 @@ export default function BarcodeLabel({ product, store, productName }) {
         }
       `}</style>
 
-      {/* Header: Store Info */}
+      {/* Header: Store Name and Phone */}
       <div className="label-header">
         <div className="store-info">
-          <div className="store-name">{storeName}®</div>
-          {storeInfo && <div className="store-details">{storeInfo}</div>}
+          <div className="store-name">SRI GAYATRI POOJA STORES</div>
         </div>
+        {storePhone && (
+          <div className="store-phone">{storePhone}</div>
+        )}
       </div>
 
       {/* Body: Product Info and Barcode */}
@@ -262,17 +265,16 @@ export default function BarcodeLabel({ product, store, productName }) {
               <span className="price-label">{storeName.substring(0, 3).toUpperCase()} Rs.:</span>
               <span className="price-value">₹{Number(sellingPrice).toFixed(2)}</span>
             </div>
-            <div className="price-row">
+            <div className="price-row mrp-row">
               <span className="price-label">MRP Rs.:</span>
               <span className="price-value">₹{Number(mrp).toFixed(2)}</span>
+              <span className="tax-info">(Incl of All Taxes)</span>
             </div>
-            <div className="tax-info">(Incl of All Taxes)</div>
           </div>
         </div>
 
         <div className="barcode-section">
           <svg ref={barcodeRef} className="barcode-svg" />
-          <div className="barcode-code">{product.barcode || ''}</div>
         </div>
       </div>
     </div>
