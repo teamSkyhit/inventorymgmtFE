@@ -215,7 +215,7 @@ export default function ProductAttributes({ productId, token, readonly = false }
                   <TableCell>{attr.weight ? `${attr.weight} kg` : '—'}</TableCell>
                   <TableCell>
                     {attr.price ? (
-                      <span className="font-medium">${parseFloat(attr.price).toFixed(2)}</span>
+                      <span className="font-medium">₹{parseFloat(attr.price).toFixed(2)}</span>
                     ) : (
                       <span className="text-muted-foreground text-sm">Use base price</span>
                     )}

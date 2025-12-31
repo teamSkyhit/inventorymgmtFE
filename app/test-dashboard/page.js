@@ -38,7 +38,7 @@ export default function TestDashboard() {
           <ul>
             <li>Total Products: {metrics.totalProducts}</li>
             <li>Low Stock: {metrics.lowStock}</li>
-            <li>Total Value: ${metrics.totalValue}</li>
+            <li>Total Value: ₹{metrics.totalValue}</li>
             <li>Total Shelves: {metrics.totalShelves}</li>
             <li>Total Users: {metrics.totalUsers}</li>
             <li>Recent Sales: {metrics.recentSales}</li>

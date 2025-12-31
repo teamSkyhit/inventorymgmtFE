@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import ProtectedRoute from '@/components/protected-route';
-import AdminLayout from '@/components/admin-layout';
+import RoleBasedLayout from '@/components/role-based-layout';
 import {
   Card,
   CardContent,
@@ -28,7 +28,7 @@ import { useRouter } from 'next/navigation';
 import { useCommon } from '@/lib/common-context';
 import { useAuth } from '@/lib/auth-context';
 import ImageUpload from '@/components/image-upload';
-import { productsAPI } from '@/lib/api';
+import { productsAPI, shelvesAPI } from '@/lib/api';
 import logger from '@/lib/logger';
 import { productSchema, formatZodError, getFieldErrors } from '@/lib/validations';
 
@@ -37,6 +37,8 @@ export default function AddProductPage() {
   const { user } = useAuth();
   const { categories } = useCommon();
   const [subCategoryList, setSubCategoryList] = useState([]);
+  const [shelves, setShelves] = useState([]);
+  const [loadingShelves, setLoadingShelves] = useState(true);
   const [errors, setErrors] = useState({});
   const [formData, setFormData] = useState({
     name: '',
@@ -55,25 +57,6 @@ export default function AddProductPage() {
     image: '',
   });
 
-  const shelves = [
-    'A1',
-    'A2',
-    'A3',
-    'A4',
-    'B1',
-    'B2',
-    'B3',
-    'B4',
-    'C1',
-    'C2',
-    'C3',
-    'C4',
-    'D1',
-    'D2',
-    'D3',
-    'D4',
-  ];
-
   useEffect(() => {
     if (formData.categoryId && categories?.length) {
       const selectedCategory =
@@ -83,6 +66,31 @@ export default function AddProductPage() {
       setSubCategoryList([]);
     }
   }, [formData.categoryId, categories]);
+
+  useEffect(() => {
+    const fetchShelves = async () => {
+      if (!user?.token) {
+        setLoadingShelves(false);
+        return;
+      }
+      try {
+        setLoadingShelves(true);
+        const response = await shelvesAPI.getAll(user.token);
+        if (response.success) {
+          setShelves(response.data || []);
+        } else {
+          logger.error('Failed to fetch shelves:', response.message);
+          toast.error('Failed to load shelf locations');
+        }
+      } catch (error) {
+        logger.error('Error fetching shelves:', error);
+        toast.error('Failed to load shelf locations');
+      } finally {
+        setLoadingShelves(false);
+      }
+    };
+    fetchShelves();
+  }, [user?.token]);
 
   const generateBarcode = () => {
     const barcode = Math.floor(
@@ -185,8 +193,8 @@ export default function AddProductPage() {
   };
 
   return (
-    <ProtectedRoute allowedRoles={['admin']}>
-      <AdminLayout>
+    <ProtectedRoute allowedRoles={['admin', 'user']}>
+      <RoleBasedLayout>
         <div className="max-w-3xl mx-auto space-y-6">
           <div>
             <h1 className="text-3xl font-bold">Add/Edit Product</h1>
@@ -300,11 +308,17 @@ export default function AddProductPage() {
                         <SelectValue placeholder="Select shelf location" />
                       </SelectTrigger>
                       <SelectContent>
-                        {shelves.map((shelf) => (
-                          <SelectItem key={shelf} value={shelf}>
-                            {shelf}
-                          </SelectItem>
-                        ))}
+                        {loadingShelves ? (
+                          <div className="px-2 py-1.5 text-sm text-muted-foreground">Loading shelves...</div>
+                        ) : shelves.length === 0 ? (
+                          <div className="px-2 py-1.5 text-sm text-muted-foreground">No shelves available. Create shelves first.</div>
+                        ) : (
+                          shelves.map((shelf) => (
+                            <SelectItem key={shelf.id} value={shelf.id}>
+                              {shelf.name}
+                            </SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -465,7 +479,7 @@ export default function AddProductPage() {
             </CardContent>
           </Card>
         </div>
-      </AdminLayout>
+      </RoleBasedLayout>
     </ProtectedRoute>
   );
 }

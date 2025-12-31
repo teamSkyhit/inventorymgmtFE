@@ -25,7 +25,7 @@ export default function ProtectedRoute({ children, allowedRoles = [] }) {
         if (userRole === 'admin') {
           router.push('/dashboard');
         } else {
-          router.push('/scan');
+          router.push('/inventory');
         }
       }
     }

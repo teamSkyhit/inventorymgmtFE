@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import ProtectedRoute from '@/components/protected-route';
-import AdminLayout from '@/components/admin-layout';
+import RoleBasedLayout from '@/components/role-based-layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -480,7 +480,7 @@ export default function InventoryPage() {
             }
 
             .store-name {
-              font-size: 7px;
+              font-size: 8px;
               font-weight: bold;
               text-transform: uppercase;
               line-height: 1.1;
@@ -588,7 +588,7 @@ export default function InventoryPage() {
             }
 
             .price-value.selling-price {
-              font-size: 9px;
+              font-size: 12px;
               font-weight: bold;
             }
 
@@ -877,19 +877,19 @@ export default function InventoryPage() {
 
   if (loading) {
     return (
-      <ProtectedRoute allowedRoles={['admin']}>
-        <AdminLayout>
+      <ProtectedRoute allowedRoles={['admin', 'user']}>
+        <RoleBasedLayout>
           <div className="flex items-center justify-center h-[60vh]">
             <Loader message="Loading your inventory shelves..." />
           </div>
-        </AdminLayout>
+        </RoleBasedLayout>
       </ProtectedRoute>
     );
   }
 
   return (
-    <ProtectedRoute allowedRoles={['admin']}>
-      <AdminLayout>
+    <ProtectedRoute allowedRoles={['admin', 'user']}>
+      <RoleBasedLayout>
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div>
@@ -1068,14 +1068,14 @@ export default function InventoryPage() {
                               {salePrice ? (
                                 <div>
                                   <span className="line-through text-muted-foreground text-sm">
-                                    ${mrp.toFixed(2)}
+                                    ₹{mrp.toFixed(2)}
                                   </span>
                                   <span className="ml-2 text-destructive font-semibold">
-                                    ${salePrice.toFixed(2)}
+                                    ₹{salePrice.toFixed(2)}
                                   </span>
                                 </div>
                               ) : (
-                                `$${displayPrice.toFixed(2)}`
+                                `₹${displayPrice.toFixed(2)}`
                               )}
                             </TableCell>
                             <TableCell className="font-mono">
@@ -1145,7 +1145,7 @@ export default function InventoryPage() {
             </CardContent>
           </Card>
         </div>
-      </AdminLayout>
+      </RoleBasedLayout>
 
       {/* Edit Modal */}
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
@@ -1683,27 +1683,27 @@ export default function InventoryPage() {
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">MRP</span>
                     <span className="font-medium">
-                      ${Number(selectedProduct.mrp || 0).toFixed(2)}
+                      ₹{Number(selectedProduct.mrp || 0).toFixed(2)}
                     </span>
                   </div>
                   {selectedProduct.salePrice && (
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Sale Price</span>
                       <span className="font-medium text-destructive">
-                        ${Number(selectedProduct.salePrice).toFixed(2)}
+                        ₹{Number(selectedProduct.salePrice).toFixed(2)}
                       </span>
                     </div>
                   )}
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Current Price</span>
                     <span className="font-medium">
-                      ${Number(selectedProduct.price || 0).toFixed(2)}
+                      ₹{Number(selectedProduct.price || 0).toFixed(2)}
                     </span>
                   </div>
                   <div className="flex justify-between pt-2 border-t">
                     <span className="text-muted-foreground font-semibold">Total Value</span>
                     <span className="font-bold">
-                      $
+                      ₹
                       {(
                         Number(selectedProduct.price || 0) *
                         Number(selectedProduct.quantity || 0)

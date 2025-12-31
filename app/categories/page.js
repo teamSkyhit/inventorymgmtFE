@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import ProtectedRoute from '@/components/protected-route';
-import AdminLayout from '@/components/admin-layout';
+import RoleBasedLayout from '@/components/role-based-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -317,19 +317,19 @@ export default function CategoriesPage() {
 
   if (loading) {
     return (
-      <ProtectedRoute allowedRoles={['admin']}>
-        <AdminLayout>
+      <ProtectedRoute allowedRoles={['admin', 'user']}>
+        <RoleBasedLayout>
           <div className="flex items-center justify-center h-[60vh]">
             <Loader message="Loading categories & subcategories..." />
           </div>
-        </AdminLayout>
+        </RoleBasedLayout>
       </ProtectedRoute>
     );
   }
 
   return (
-    <ProtectedRoute allowedRoles={['admin']}>
-      <AdminLayout>
+    <ProtectedRoute allowedRoles={['admin', 'user']}>
+      <RoleBasedLayout>
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div>
@@ -787,7 +787,7 @@ export default function CategoriesPage() {
             </AlertDialogContent>
           </AlertDialog>
         </div>
-      </AdminLayout>
+      </RoleBasedLayout>
     </ProtectedRoute>
   );
 }

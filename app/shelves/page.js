@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import ProtectedRoute from '@/components/protected-route'
-import AdminLayout from '@/components/admin-layout'
+import RoleBasedLayout from '@/components/role-based-layout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -230,20 +230,20 @@ export default function ShelvesPage() {
 
   if (loading) {
     return (
-      <ProtectedRoute allowedRoles={['admin']}>
-        <AdminLayout>
+      <ProtectedRoute allowedRoles={['admin', 'user']}>
+        <RoleBasedLayout>
           <div className="flex items-center justify-center h-64">
             <Loader message="Loading shelf data..." />
           </div>
-        </AdminLayout>
+        </RoleBasedLayout>
       </ProtectedRoute>
     )
   }
 
   if (error) {
     return (
-      <ProtectedRoute allowedRoles={['admin']}>
-        <AdminLayout>
+      <ProtectedRoute allowedRoles={['admin', 'user']}>
+        <RoleBasedLayout>
           <div className="flex flex-col items-center justify-center h-64 space-y-4">
             <p className="text-red-500 font-medium">{error}</p>
             <Button variant="outline" onClick={fetchShelves}>
@@ -251,14 +251,14 @@ export default function ShelvesPage() {
               Retry
             </Button>
           </div>
-        </AdminLayout>
+        </RoleBasedLayout>
       </ProtectedRoute>
     )
   }
 
   return (
-    <ProtectedRoute allowedRoles={['admin']}>
-      <AdminLayout>
+      <ProtectedRoute allowedRoles={['admin', 'user']}>
+      <RoleBasedLayout>
         <div className="space-y-6">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div>
@@ -485,7 +485,7 @@ export default function ShelvesPage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-      </AdminLayout>
+      </RoleBasedLayout>
     </ProtectedRoute>
   )
 }

@@ -1,10 +1,10 @@
 'use client'
 
 import { useAuth } from '@/lib/auth-context'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
-import { Scan, TrendingUp, User as UserIcon, Package, LogOut } from 'lucide-react'
+import { Package, Plus, Warehouse, FolderTree, Printer, LogOut, Menu } from 'lucide-react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import Loader from '@/components/ui/loader'
@@ -14,17 +14,30 @@ import {
   getActiveRequestCount,
 } from '@/lib/network-tracker'
 
+const USER_NAV_ITEMS = [
+  { name: 'Add Product', href: '/add-product', icon: Plus },
+  { name: 'Inventory', href: '/inventory', icon: Package },
+  { name: 'Shelves', href: '/shelves', icon: Warehouse },
+  { name: 'Categories', href: '/categories', icon: FolderTree },
+  { name: 'Print Barcodes', href: '/print-barcodes', icon: Printer },
+]
+
 export default function UserLayout({ children }) {
   const { user, logout, loading: authLoading } = useAuth()
   const pathname = usePathname()
+  const router = useRouter()
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [networkBusy, setNetworkBusy] = useState(false)
 
-  const navigation = [
-    { name: 'Scan', href: '/scan', icon: Scan },
-    { name: 'Update Sale', href: '/update-sale', icon: TrendingUp },
-    { name: 'Profile', href: '/profile', icon: UserIcon },
-    { name: 'Logout', action: 'logout', icon: LogOut },
-  ]
+  useEffect(() => {
+    USER_NAV_ITEMS.forEach((item) => {
+      try {
+        router.prefetch?.(item.href)
+      } catch (err) {
+        // router.prefetch is not available during SSR
+      }
+    })
+  }, [router])
 
   useEffect(() => {
     setNetworkBusy(getActiveRequestCount() > 0)
@@ -43,82 +56,143 @@ export default function UserLayout({ children }) {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-20 md:pb-0 relative">
+    <div className="min-h-screen bg-background relative">
       {networkBusy && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/70 backdrop-blur-sm">
           <Loader message="Syncing data..." />
         </div>
       )}
-      {/* Top Bar */}
+      {/* Top Navigation Bar */}
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="flex h-28 items-center px-4 justify-between">
-          <Link href="/scan" className="flex items-center gap-3 font-bold">
-            <Image
-              src="/logo.png"
-              alt="Logo"
-              width={96}
-              height={96}
-              className="w-[6rem] h-[6rem] object-contain"
-            />
-            <span className="text-lg sm:text-xl">SRI GAYATRI POOJA STORES</span>
-          </Link>
-          <div className="flex items-center gap-3">
+        <div className="flex h-28 items-center px-4 gap-4 justify-between">
+          {/* Left: Mobile menu + logo */}
+          <div className="flex items-center gap-3 min-w-[140px]">
             <Button
-              variant="outline"
-              size="sm"
-              onClick={logout}
-              className="hidden sm:inline-flex"
+              variant="ghost"
+              size="icon"
+              className="md:hidden"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             >
-              <LogOut className="h-4 w-4 mr-1" />
-              Logout
+              <Menu className="h-5 w-5" />
             </Button>
-            <Avatar>
-              <AvatarFallback>{user?.email?.[0]?.toUpperCase()}</AvatarFallback>
-            </Avatar>
+            <Link
+              href="/inventory"
+              className="flex items-center gap-3 font-bold"
+            >
+              <Image
+                src="/logo.png"
+                alt="Logo"
+                width={96}
+                height={96}
+                className="w-[6rem] h-[6rem] object-contain"
+              />
+              <span className="text-lg sm:text-3xl">SRI GAYATRI POOJA STORES</span>
+            </Link>
+          </div>
+
+          {/* Right: Profile */}
+          <div className="flex items-center gap-2 min-w-[88px] justify-end">
+            {user ? (
+              <Avatar>
+                <AvatarFallback>
+                  {user?.email?.[0]?.toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+            ) : (
+              <Loader />
+            )}
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="container mx-auto p-4">
-        {children}
-      </main>
-
-      {/* Bottom Navigation - Mobile */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background md:hidden">
-        <div className="flex items-center justify-around h-16">
-          {navigation.map((item) => {
-            const Icon = item.icon
-            const isActive = item.href ? pathname === item.href : false
-
-            if (item.action === 'logout') {
+      <div className="flex">
+        {/* Sidebar - Desktop */}
+        <aside className="hidden md:flex w-64 flex-col border-r bg-background h-[calc(100vh-7rem)] sticky top-28">
+          <nav className="flex-1 space-y-1 p-4 overflow-y-auto">
+            {USER_NAV_ITEMS.map((item) => {
+              const Icon = item.icon
+              const isActive = pathname === item.href
               return (
-                <button
+                <Link
                   key={item.name}
-                  onClick={logout}
-                  className="flex flex-col items-center justify-center gap-1 px-3 py-2 flex-1 text-muted-foreground"
+                  href={item.href}
+                  prefetch
+                  aria-current={isActive ? 'page' : undefined}
+                  className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    isActive
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                  }`}
                 >
-                  <Icon className="h-6 w-6" />
-                  <span className="text-xs font-medium">{item.name}</span>
-                </button>
+                  <Icon className="h-5 w-5" />
+                  {item.name}
+                </Link>
               )
-            }
+            })}
+          </nav>
+          <div className="p-4 border-t bg-background sticky bottom-0">
+            <Button
+              variant="ghost"
+              className="w-full justify-start gap-3"
+              onClick={logout}
+            >
+              <LogOut className="h-5 w-5" />
+              Logout
+            </Button>
+          </div>
+        </aside>
 
-            return (
-              <Link
-                key={item.name}
-                href={item.href}
-                className={`flex flex-col items-center justify-center gap-1 px-3 py-2 flex-1 ${
-                  isActive ? 'text-primary' : 'text-muted-foreground'
-                }`}
-              >
-                <Icon className="h-6 w-6" />
-                <span className="text-xs font-medium">{item.name}</span>
-              </Link>
-            )
-          })}
-        </div>
-      </nav>
+        {/* Mobile Sidebar */}
+        {mobileMenuOpen && (
+          <div className="fixed inset-0 z-40 md:hidden">
+            <div
+              className="fixed inset-0 bg-black/50"
+              onClick={() => setMobileMenuOpen(false)}
+            />
+            <aside className="fixed left-0 top-28 bottom-0 w-64 bg-background border-r flex flex-col">
+              <nav className="flex-1 space-y-1 p-4 overflow-y-auto">
+                {USER_NAV_ITEMS.map((item) => {
+                  const Icon = item.icon
+                  const isActive = pathname === item.href
+                  return (
+                    <Link
+                      key={item.name}
+                      href={item.href}
+                      prefetch
+                      aria-current={isActive ? 'page' : undefined}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        isActive
+                          ? 'bg-primary text-primary-foreground'
+                          : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                      }`}
+                    >
+                      <Icon className="h-5 w-5" />
+                      {item.name}
+                    </Link>
+                  )
+                })}
+              </nav>
+              <div className="p-4 border-t bg-background">
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start gap-3"
+                  onClick={() => {
+                    setMobileMenuOpen(false)
+                    logout()
+                  }}
+                >
+                  <LogOut className="h-5 w-5" />
+                  Logout
+                </Button>
+              </div>
+            </aside>
+          </div>
+        )}
+
+        {/* Main Content */}
+        <main className="flex-1 p-6">{children}</main>
+      </div>
     </div>
   )
 }

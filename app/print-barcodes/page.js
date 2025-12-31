@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import ProtectedRoute from '@/components/protected-route';
-import AdminLayout from '@/components/admin-layout';
+import RoleBasedLayout from '@/components/role-based-layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -316,7 +316,7 @@ export default function PrintBarcodesPage() {
               }
 
               .store-name {
-                font-size: 7px;
+                font-size: 8px;
                 font-weight: bold;
                 text-transform: uppercase;
                 line-height: 1.1;
@@ -424,7 +424,7 @@ export default function PrintBarcodesPage() {
               }
 
               .price-value.selling-price {
-                font-size: 9px;
+                font-size: 12px;
                 font-weight: bold;
               }
 
@@ -549,8 +549,8 @@ export default function PrintBarcodesPage() {
   const someSelected = selectedProducts.size > 0 && selectedProducts.size < filteredProducts.length;
 
   return (
-    <ProtectedRoute allowedRoles={['admin']}>
-      <AdminLayout>
+    <ProtectedRoute allowedRoles={['admin', 'user']}>
+      <RoleBasedLayout>
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div>
@@ -719,7 +719,7 @@ export default function PrintBarcodesPage() {
             </DialogContent>
           </Dialog>
         </div>
-      </AdminLayout>
+      </RoleBasedLayout>
     </ProtectedRoute>
   );
 }

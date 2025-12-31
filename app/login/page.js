@@ -31,7 +31,7 @@ export default function LoginPage() {
       if (userRole === 'admin') {
         router.push('/dashboard')
       } else {
-        router.push('/scan')
+        router.push('/inventory')
       }
     }
   }, [user, authLoading, router])

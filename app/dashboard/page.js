@@ -147,7 +147,7 @@ export default function DashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  ${(metrics?.totalValue || 0).toLocaleString()}
+                  ₹{(metrics?.totalValue || 0).toLocaleString()}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Total inventory value

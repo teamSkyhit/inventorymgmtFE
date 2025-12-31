@@ -123,7 +123,7 @@ function UpdateSaleContent() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Price</p>
-                  <p className="text-2xl font-bold">${product.price.toFixed(2)}</p>
+                  <p className="text-2xl font-bold">₹{product.price.toFixed(2)}</p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Shelf</p>
@@ -172,7 +172,7 @@ function UpdateSaleContent() {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Sale Value:</span>
-                        <span className="font-medium">${(product.price * parseInt(soldQuantity)).toFixed(2)}</span>
+                        <span className="font-medium">₹{(product.price * parseInt(soldQuantity)).toFixed(2)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">New Stock Level:</span>

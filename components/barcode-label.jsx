@@ -98,7 +98,7 @@ export default function BarcodeLabel({ product, store, productName }) {
         }
 
         .store-name {
-          font-size: 7px;
+          font-size: 8px;
           font-weight: bold;
           text-transform: uppercase;
           line-height: 1.1;

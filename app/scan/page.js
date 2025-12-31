@@ -203,7 +203,7 @@ export default function ScanPage() {
                       <DollarSign className="h-4 w-4" />
                       <span className="text-sm">Price</span>
                     </div>
-                    <p className="font-medium">${scannedProduct.price.toFixed(2)}</p>
+                    <p className="font-medium">₹{scannedProduct.price.toFixed(2)}</p>
                   </div>
                 </div>
 
