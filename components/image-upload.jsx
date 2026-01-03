@@ -78,24 +78,51 @@ export default function ImageUpload({ value, onChange, label = 'Product Image' }
       stopCamera();
       setShowCamera(false);
     } else {
-      // Start camera
-      startCamera();
+      // Show camera preview first, then start camera stream
+      setShowCamera(true);
     }
   };
 
   const startCamera = async () => {
     try {
+      // Check if mediaDevices is available
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert('Camera is not supported in this browser. Please use a modern browser or upload an image file instead.');
+        setShowCamera(false);
+        return;
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' } // Use back camera on mobile
+        video: { 
+          facingMode: 'environment', // Use back camera on mobile
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
       });
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        setShowCamera(true);
+        // Wait for video to be ready
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current.play().catch(err => {
+            console.error('Error playing video:', err);
+          });
+        };
       }
     } catch (error) {
       console.error('Error accessing camera:', error);
-      alert('Unable to access camera. Please check permissions.');
+      setShowCamera(false);
+      let errorMessage = 'Unable to access camera. ';
+      if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+        errorMessage += 'Please allow camera permissions in your browser settings.';
+      } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+        errorMessage += 'No camera found on this device.';
+      } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+        errorMessage += 'Camera is already in use by another application.';
+      } else {
+        errorMessage += 'Please check your camera permissions and try again.';
+      }
+      alert(errorMessage);
     }
   };
 
@@ -173,6 +200,14 @@ export default function ImageUpload({ value, onChange, label = 'Product Image' }
       setPreview(value || null);
     }
   }, [value]);
+
+  // Start camera when showCamera becomes true and video element is available
+  useEffect(() => {
+    if (showCamera && videoRef.current) {
+      startCamera();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showCamera]);
 
   // Cleanup camera stream on unmount
   useEffect(() => {

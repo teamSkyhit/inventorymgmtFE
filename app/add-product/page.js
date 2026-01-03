@@ -174,22 +174,152 @@ export default function AddProductPage() {
     }
   };
 
-  const handleChange = (field, value) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-    // Clear error for this field when user starts typing
-    if (errors[field]) {
-      setErrors((prev) => {
-        const newErrors = { ...prev };
-        delete newErrors[field];
-        return newErrors;
-      });
+  const validateField = (field, value, currentFormData = formData) => {
+    const fieldErrors = { ...errors };
+    
+    switch (field) {
+      case 'name':
+        if (!value || value.trim() === '') {
+          fieldErrors.name = 'Product name is required';
+        } else if (value.length > 200) {
+          fieldErrors.name = 'Product name must be less than 200 characters';
+        } else {
+          delete fieldErrors.name;
+        }
+        break;
+        
+      case 'categoryId':
+        if (!value) {
+          fieldErrors.categoryId = 'Please select a category';
+        } else {
+          delete fieldErrors.categoryId;
+        }
+        break;
+        
+      case 'barcode':
+        if (!value || value.trim() === '') {
+          fieldErrors.barcode = 'Barcode is required';
+        } else if (value.length > 50) {
+          fieldErrors.barcode = 'Barcode must be less than 50 characters';
+        } else if (!/^[0-9]+$/.test(value)) {
+          fieldErrors.barcode = 'Barcode must contain only numbers';
+        } else {
+          delete fieldErrors.barcode;
+        }
+        break;
+        
+      case 'mrp':
+        if (!value || value === '') {
+          fieldErrors.mrp = 'MRP is required';
+        } else {
+          const num = Number(value);
+          if (isNaN(num)) {
+            fieldErrors.mrp = 'MRP must be a number';
+          } else if (num < 0) {
+            fieldErrors.mrp = 'MRP cannot be negative';
+          } else if (num > 999999.99) {
+            fieldErrors.mrp = 'MRP is too large (max: 999999.99)';
+          } else {
+            delete fieldErrors.mrp;
+            // Re-validate sale price if it exists (check if sale price > mrp)
+            if (currentFormData.salePrice && currentFormData.salePrice !== '') {
+              const salePriceNum = Number(currentFormData.salePrice);
+              if (!isNaN(salePriceNum) && salePriceNum > num) {
+                fieldErrors.salePrice = 'Sale price should be less than or equal to MRP';
+              } else if (fieldErrors.salePrice === 'Sale price should be less than or equal to MRP') {
+                delete fieldErrors.salePrice;
+              }
+            }
+          }
+        }
+        break;
+        
+      case 'salePrice':
+        if (value && value !== '') {
+          const num = Number(value);
+          if (isNaN(num)) {
+            fieldErrors.salePrice = 'Sale price must be a number';
+          } else if (num < 0) {
+            fieldErrors.salePrice = 'Sale price cannot be negative';
+          } else if (num > 999999.99) {
+            fieldErrors.salePrice = 'Sale price is too large (max: 999999.99)';
+          } else {
+            const mrp = Number(currentFormData.mrp);
+            if (!isNaN(mrp) && mrp > 0 && num > mrp) {
+              fieldErrors.salePrice = 'Sale price should be less than or equal to MRP';
+            } else {
+              delete fieldErrors.salePrice;
+            }
+          }
+        } else {
+          delete fieldErrors.salePrice;
+        }
+        break;
+        
+      case 'quantity':
+        if (value && value !== '') {
+          const num = Number(value);
+          if (isNaN(num) || !Number.isInteger(num)) {
+            fieldErrors.quantity = 'Quantity must be a whole number';
+          } else if (num < 0) {
+            fieldErrors.quantity = 'Quantity cannot be negative';
+          } else {
+            delete fieldErrors.quantity;
+          }
+        } else {
+          delete fieldErrors.quantity;
+        }
+        break;
+        
+      case 'minStockLevel':
+        if (value && value !== '') {
+          const num = Number(value);
+          if (isNaN(num) || !Number.isInteger(num)) {
+            fieldErrors.minStockLevel = 'Minimum stock level must be a whole number';
+          } else if (num < 0) {
+            fieldErrors.minStockLevel = 'Minimum stock level cannot be negative';
+          } else {
+            delete fieldErrors.minStockLevel;
+          }
+        } else {
+          delete fieldErrors.minStockLevel;
+        }
+        break;
+        
+      case 'description':
+        if (value && value.length > 5000) {
+          fieldErrors.description = 'Description must be less than 5000 characters';
+        } else {
+          delete fieldErrors.description;
+        }
+        break;
+        
+      default:
+        break;
     }
+    
+    setErrors(fieldErrors);
+    return fieldErrors;
+  };
+
+  const handleChange = (field, value) => {
+    const updatedFormData = { ...formData, [field]: value };
+    setFormData(updatedFormData);
+    
+    // Validate field in real-time with updated form data
+    validateField(field, value, updatedFormData);
+    
     if (field === 'categoryId') {
       setSubCategoryList(
         categories?.find((cat) => cat.id === value)?.subcategories || []
       );
       setFormData((prev) => ({ ...prev, subcategoryId: '' }));
     }
+  };
+
+  const handleBlur = (field, value) => {
+    // Validate on blur for better UX
+    validateField(field, value, formData);
   };
 
   return (
@@ -219,8 +349,10 @@ export default function AddProductPage() {
                     placeholder="Organic Whole Milk"
                     value={formData.name}
                     onChange={(e) => handleChange('name', e.target.value)}
+                    onBlur={(e) => handleBlur('name', e.target.value)}
                     className={errors.name ? 'border-destructive' : ''}
                     required
+                    maxLength={200}
                   />
                   {errors.name && (
                     <p className="text-sm text-destructive">{errors.name}</p>
@@ -278,12 +410,14 @@ export default function AddProductPage() {
                       <Input
                         id="barcode"
                         placeholder="123456789012"
-                    value={formData.barcode}
+                        value={formData.barcode}
                         onChange={(e) =>
                           handleChange('barcode', e.target.value)
                         }
+                        onBlur={(e) => handleBlur('barcode', e.target.value)}
                         className={errors.barcode ? 'border-destructive' : ''}
                         required
+                        maxLength={50}
                       />
                       <Button
                         type="button"
@@ -331,9 +465,12 @@ export default function AddProductPage() {
                       id="mrp"
                       type="number"
                       step="0.01"
+                      min="0"
+                      max="999999.99"
                       placeholder="999.99"
                       value={formData.mrp}
                       onChange={(e) => handleChange('mrp', e.target.value)}
+                      onBlur={(e) => handleBlur('mrp', e.target.value)}
                       className={errors.mrp ? 'border-destructive' : ''}
                       required
                     />
@@ -348,9 +485,12 @@ export default function AddProductPage() {
                       id="salePrice"
                       type="number"
                       step="0.01"
+                      min="0"
+                      max="999999.99"
                       placeholder="949.99"
                       value={formData.salePrice}
                       onChange={(e) => handleChange('salePrice', e.target.value)}
+                      onBlur={(e) => handleBlur('salePrice', e.target.value)}
                       className={errors.salePrice ? 'border-destructive' : ''}
                     />
                     {errors.salePrice && (
@@ -404,9 +544,12 @@ export default function AddProductPage() {
                     <Input
                       id="quantity"
                       type="number"
+                      min="0"
+                      step="1"
                       placeholder="150"
                       value={formData.quantity}
                       onChange={(e) => handleChange('quantity', e.target.value)}
+                      onBlur={(e) => handleBlur('quantity', e.target.value)}
                       className={errors.quantity ? 'border-destructive' : ''}
                     />
                     {errors.quantity && (
@@ -419,9 +562,12 @@ export default function AddProductPage() {
                     <Input
                       id="minStockLevel"
                       type="number"
+                      min="0"
+                      step="1"
                       placeholder="5"
                       value={formData.minStockLevel}
                       onChange={(e) => handleChange('minStockLevel', e.target.value)}
+                      onBlur={(e) => handleBlur('minStockLevel', e.target.value)}
                       className={errors.minStockLevel ? 'border-destructive' : ''}
                     />
                     {errors.minStockLevel && (
@@ -456,7 +602,18 @@ export default function AddProductPage() {
                     onChange={(e) =>
                       handleChange('description', e.target.value)
                     }
+                    onBlur={(e) => handleBlur('description', e.target.value)}
+                    className={errors.description ? 'border-destructive' : ''}
+                    maxLength={5000}
                   />
+                  {errors.description && (
+                    <p className="text-sm text-destructive">{errors.description}</p>
+                  )}
+                  {formData.description && (
+                    <p className="text-xs text-muted-foreground">
+                      {formData.description.length}/5000 characters
+                    </p>
+                  )}
                 </div>
 
                 <ImageUpload
