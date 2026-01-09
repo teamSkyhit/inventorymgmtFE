@@ -217,9 +217,8 @@ export default function PrintBarcodesPage() {
 
       const storeName = store?.name || 'STORE';
       const storeLocation = store?.city || '';
-      const storePhone = '+91 9701702827';
-      const storeInfo = [storeLocation, storePhone].filter(Boolean).join('. ');
-      const storeCode = storeName.substring(0, 3).toUpperCase() === 'BRA' ? 'SHW' : (storeName.substring(0, 3).toUpperCase() || 'SHW');
+      const storeInfo = storeLocation || '';
+      const storeCode = storeName.substring(0, 3).toUpperCase() === 'BRA' ? 'SP' : (storeName.substring(0, 3).toUpperCase() || 'SP');
 
       // Escape HTML
       const escapeHtml = (str) => {
@@ -245,8 +244,7 @@ export default function PrintBarcodesPage() {
         return `
           <div class="barcode-label">
             <div class="label-header">
-              <div class="store-name">SRI GAYATRI POOJA STORES</div>
-              ${storePhone ? `<div class="store-phone">${escapeHtml(storePhone)}</div>` : ''}
+              <div class="store-name">SRI OM GAYATRI POOJA STORES</div>
             </div>
             <div class="product-name">${escapeHtml(productNameWithShelf)}</div>
             <div class="barcode-container">
@@ -261,7 +259,7 @@ export default function PrintBarcodesPage() {
               <div class="price-row mrp-row">
                 <span class="price-label">MRP Rs.:</span>
                 <span class="price-value mrp">₹${Number(mrp).toFixed(2)}</span>
-                <span class="tax-info">(Incl of All Taxes) MHS</span>
+                <span class="tax-info">(Incl of All Taxes)</span>
               </div>
             </div>
           </div>
@@ -316,7 +314,7 @@ export default function PrintBarcodesPage() {
               }
 
               .store-name {
-                font-size: 8px;
+                font-size: 9px;
                 font-weight: bold;
                 text-transform: uppercase;
                 line-height: 1.1;
@@ -326,13 +324,6 @@ export default function PrintBarcodesPage() {
                 white-space: nowrap;
               }
 
-              .store-phone {
-                font-size: 6px;
-                font-weight: bold;
-                text-align: right;
-                line-height: 1.1;
-                white-space: nowrap;
-              }
 
               .product-name {
                 font-size: 7px;

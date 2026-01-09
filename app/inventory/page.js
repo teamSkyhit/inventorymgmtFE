@@ -277,8 +277,7 @@ export default function InventoryPage() {
       const store = stores.length > 0 ? stores[0] : null;
       const storeName = store?.name || 'STORE';
       const storeLocation = store?.city || '';
-      const storePhone = '+91 9701702827';
-      const storeInfo = [storeLocation, storePhone].filter(Boolean).join('. ');
+      const storeInfo = storeLocation || '';
 
       const productName = product.name || 'PRODUCT';
       const shelfName = product.shelf?.name || product.shelfId || '';
@@ -287,8 +286,8 @@ export default function InventoryPage() {
       const productCode = product.sku || product.barcode || '';
       const sellingPrice = product.salePrice || product.price || product.mrp || 0;
       const mrp = product.mrp || 0;
-      // Use "SHW" for Showroom price (first 3 letters of store name, or default to SHW)
-      const storeCode = storeName.substring(0, 3).toUpperCase() === 'BRA' ? 'SHW' : (storeName.substring(0, 3).toUpperCase() || 'SHW');
+      // Use "SP" for Showroom price (first 3 letters of store name, or default to SP)
+      const storeCode = storeName.substring(0, 3).toUpperCase() === 'BRA' ? 'SP' : (storeName.substring(0, 3).toUpperCase() || 'SP');
 
       // Generate barcode SVG in the main window first
       let barcodeSvg = '';
@@ -422,7 +421,6 @@ export default function InventoryPage() {
 
       // Escape all values before using in template
       const escapedStoreName = escapeHtml(storeName);
-      const escapedStoreInfo = storeInfo ? escapeHtml(storeInfo) : '';
       const escapedProductName = escapeHtml(productNameWithShelf);
       const escapedProductCode = productCode ? escapeHtml(productCode) : '';
       const escapedStoreCode = escapeHtml(storeCode);
@@ -480,7 +478,7 @@ export default function InventoryPage() {
             }
 
             .store-name {
-              font-size: 8px;
+              font-size: 9px;
               font-weight: bold;
               text-transform: uppercase;
               line-height: 1.1;
@@ -490,13 +488,6 @@ export default function InventoryPage() {
               white-space: nowrap;
             }
 
-            .store-phone {
-              font-size: 6px;
-              font-weight: bold;
-              text-align: right;
-              line-height: 1.1;
-              white-space: nowrap;
-            }
 
             .product-name {
               font-size: 7px;
@@ -632,10 +623,9 @@ export default function InventoryPage() {
         </head>
         <body>
           <div class="barcode-label">
-            <!-- Header: Store Name and Phone -->
+            <!-- Header: Store Name -->
             <div class="label-header">
-              <div class="store-name">SRI GAYATRI POOJA STORES</div>
-              ${storePhone ? `<div class="store-phone">${escapeHtml(storePhone)}</div>` : ''}
+              <div class="store-name">SRI OM GAYATRI POOJA STORES</div>
             </div>
 
             <!-- Product Name -->
@@ -658,7 +648,7 @@ export default function InventoryPage() {
               <div class="price-row mrp-row">
                 <span class="price-label">MRP Rs.:</span>
                 <span class="price-value mrp">₹${Number(mrp).toFixed(2)}</span>
-                <span class="tax-info">(Incl of All Taxes) MHS</span>
+                <span class="tax-info">(Incl of All Taxes)</span>
               </div>
             </div>
           </div>
@@ -1591,7 +1581,7 @@ export default function InventoryPage() {
                               {(() => {
                                 const storeName = stores.length > 0 ? stores[0].name : 'STORE';
                                 const code = storeName.substring(0, 3).toUpperCase();
-                                return code === 'BRA' ? 'SHW' : (code || 'SHW');
+                                return code === 'BRA' ? 'SP' : (code || 'SP');
                               })()} Rs.:
                             </span>
                             <span className="font-bold text-sm">
@@ -1604,7 +1594,7 @@ export default function InventoryPage() {
                               ₹{Number(selectedProduct.mrp || 0).toFixed(2)}
                             </span>
                           </div>
-                          <div className="text-[7px] text-gray-600 font-medium">(Incl of All Taxes) MHS</div>
+                          <div className="text-[7px] text-gray-600 font-medium">(Incl of All Taxes)</div>
                         </div>
                       </div>
                       <Button

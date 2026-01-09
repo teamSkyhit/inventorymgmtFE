@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import {
   Select,
   SelectContent,
@@ -22,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { useCommon } from '@/lib/common-context';
@@ -40,6 +41,12 @@ export default function AddProductPage() {
   const [shelves, setShelves] = useState([]);
   const [loadingShelves, setLoadingShelves] = useState(true);
   const [errors, setErrors] = useState({});
+  const [enabledFields, setEnabledFields] = useState({
+    modelType: false,
+    packType: false,
+    size: false,
+    weight: false,
+  });
   const [formData, setFormData] = useState({
     name: '',
     categoryId: '',
@@ -47,14 +54,22 @@ export default function AddProductPage() {
     barcode: '',
     mrp: '',
     salePrice: '',
-    modelType: '',
-    packType: '',
+    modelType: [],
+    packType: [],
+    size: [],
+    weight: [],
     quantity: '',
     minStockLevel: '',
     allowNegativeStock: true,
     shelfId: '',
     description: '',
     image: '',
+  });
+  const [tempInputs, setTempInputs] = useState({
+    modelType: '',
+    packType: '',
+    size: '',
+    weight: '',
   });
 
   useEffect(() => {
@@ -110,13 +125,29 @@ export default function AddProductPage() {
     }
 
     try {
+      // Convert arrays to comma-separated strings
+      const modelTypeStr = Array.isArray(formData.modelType) && formData.modelType.length > 0
+        ? formData.modelType.join(', ')
+        : null;
+      const packTypeStr = Array.isArray(formData.packType) && formData.packType.length > 0
+        ? formData.packType.join(', ')
+        : null;
+      const sizeStr = Array.isArray(formData.size) && formData.size.length > 0
+        ? formData.size.join(', ')
+        : null;
+      const weightStr = Array.isArray(formData.weight) && formData.weight.length > 0
+        ? formData.weight.join(', ')
+        : null;
+
       // Prepare data for validation
       const dataToValidate = {
         ...formData,
         mrp: formData.mrp ? Number(formData.mrp) : 0,
         salePrice: formData.salePrice ? Number(formData.salePrice) : null,
-        modelType: formData.modelType || null,
-        packType: formData.packType || null,
+        modelType: modelTypeStr,
+        packType: packTypeStr,
+        size: sizeStr,
+        weight: weightStr,
         quantity: formData.quantity ? Number(formData.quantity) : 0,
         minStockLevel: formData.minStockLevel ? Number(formData.minStockLevel) : null,
         allowNegativeStock: formData.allowNegativeStock !== undefined ? formData.allowNegativeStock : true,
@@ -150,6 +181,8 @@ export default function AddProductPage() {
         salePrice: validatedData.salePrice || null,
         modelType: validatedData.modelType || null,
         packType: validatedData.packType || null,
+        size: validatedData.size || null,
+        weight: validatedData.weight || null,
         quantity: validatedData.quantity || 0,
         minStockLevel: validatedData.minStockLevel || null,
         allowNegativeStock: validatedData.allowNegativeStock !== undefined ? validatedData.allowNegativeStock : true,
@@ -322,6 +355,60 @@ export default function AddProductPage() {
     validateField(field, value, formData);
   };
 
+  // Chip management functions
+  const handleChipAdd = (field, value) => {
+    if (!value || value.trim() === '') return;
+    
+    const trimmedValue = value.trim();
+    const currentArray = formData[field] || [];
+    
+    // Check if value already exists
+    if (currentArray.includes(trimmedValue)) {
+      toast.error(`${field} "${trimmedValue}" already exists`);
+      return;
+    }
+    
+    setFormData((prev) => ({
+      ...prev,
+      [field]: [...currentArray, trimmedValue],
+    }));
+    
+    setTempInputs((prev) => ({
+      ...prev,
+      [field]: '',
+    }));
+  };
+
+  const handleChipDelete = (field, index) => {
+    setFormData((prev) => ({
+      ...prev,
+      [field]: prev[field].filter((_, i) => i !== index),
+    }));
+  };
+
+  const handleChipEdit = (field, index) => {
+    const currentArray = formData[field] || [];
+    const valueToEdit = currentArray[index];
+    
+    // Remove the chip and put value in input
+    setFormData((prev) => ({
+      ...prev,
+      [field]: prev[field].filter((_, i) => i !== index),
+    }));
+    
+    setTempInputs((prev) => ({
+      ...prev,
+      [field]: valueToEdit,
+    }));
+  };
+
+  const handleChipInputKeyDown = (e, field) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleChipAdd(field, tempInputs[field]);
+    }
+  };
+
   return (
     <ProtectedRoute allowedRoles={['admin', 'user']}>
       <RoleBasedLayout>
@@ -403,6 +490,78 @@ export default function AddProductPage() {
                     </Select>
                   </div>
                 </div>
+
+                {/* Attribute Type Checkboxes */}
+                <div className="space-y-3">
+                  <Label>Product Attributes (Optional)</Label>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="enableModelType"
+                        checked={enabledFields.modelType}
+                        onCheckedChange={(checked) => {
+                          setEnabledFields((prev) => ({ ...prev, modelType: checked }));
+                          if (!checked) {
+                            setFormData((prev) => ({ ...prev, modelType: [] }));
+                            setTempInputs((prev) => ({ ...prev, modelType: '' }));
+                          }
+                        }}
+                      />
+                      <Label htmlFor="enableModelType" className="font-normal cursor-pointer">
+                        Model Type
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="enablePackType"
+                        checked={enabledFields.packType}
+                        onCheckedChange={(checked) => {
+                          setEnabledFields((prev) => ({ ...prev, packType: checked }));
+                          if (!checked) {
+                            setFormData((prev) => ({ ...prev, packType: [] }));
+                            setTempInputs((prev) => ({ ...prev, packType: '' }));
+                          }
+                        }}
+                      />
+                      <Label htmlFor="enablePackType" className="font-normal cursor-pointer">
+                        Pack Type
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="enableSize"
+                        checked={enabledFields.size}
+                        onCheckedChange={(checked) => {
+                          setEnabledFields((prev) => ({ ...prev, size: checked }));
+                          if (!checked) {
+                            setFormData((prev) => ({ ...prev, size: [] }));
+                            setTempInputs((prev) => ({ ...prev, size: '' }));
+                          }
+                        }}
+                      />
+                      <Label htmlFor="enableSize" className="font-normal cursor-pointer">
+                        Size
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="enableWeight"
+                        checked={enabledFields.weight}
+                        onCheckedChange={(checked) => {
+                          setEnabledFields((prev) => ({ ...prev, weight: checked }));
+                          if (!checked) {
+                            setFormData((prev) => ({ ...prev, weight: [] }));
+                            setTempInputs((prev) => ({ ...prev, weight: '' }));
+                          }
+                        }}
+                      />
+                      <Label htmlFor="enableWeight" className="font-normal cursor-pointer">
+                        Weight
+                      </Label>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="barcode">Barcode</Label>
@@ -502,41 +661,174 @@ export default function AddProductPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="modelType">Model Type</Label>
-                    <Select
-                      value={formData.modelType}
-                      onValueChange={(value) => handleChange('modelType', value)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select model type (optional)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="PLAIN">Plain</SelectItem>
-                        <SelectItem value="DESIGN">Design</SelectItem>
-                        <SelectItem value="TWO_D">2D</SelectItem>
-                        <SelectItem value="THREE_D">3D</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                {/* Attribute Fields - 2 Column Layout when 2+ fields enabled */}
+                {(enabledFields.modelType || enabledFields.packType || enabledFields.size || enabledFields.weight) && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Model Type Field */}
+                    {enabledFields.modelType && (
+                      <div className="space-y-2">
+                        <Label htmlFor="modelType">Model Type</Label>
+                        <Input
+                          id="modelType"
+                          placeholder="Enter model type and press Enter"
+                          value={tempInputs.modelType}
+                          onChange={(e) =>
+                            setTempInputs((prev) => ({ ...prev, modelType: e.target.value }))
+                          }
+                          onKeyDown={(e) => handleChipInputKeyDown(e, 'modelType')}
+                          disabled={!enabledFields.modelType}
+                        />
+                        {formData.modelType.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {formData.modelType.map((value, index) => (
+                              <Badge
+                                key={index}
+                                variant="secondary"
+                                className="cursor-pointer hover:bg-secondary/80"
+                                onClick={() => handleChipEdit('modelType', index)}
+                              >
+                                {value}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleChipDelete('modelType', index);
+                                  }}
+                                  className="ml-2 hover:bg-secondary/60 rounded-full p-0.5"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
-                  <div className="space-y-2">
-                    <Label htmlFor="packType">Pack Type</Label>
-                    <Select
-                      value={formData.packType}
-                      onValueChange={(value) => handleChange('packType', value)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select pack type (optional)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="PACK">Pack</SelectItem>
-                        <SelectItem value="LOOSE">Loose</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    {/* Pack Type Field */}
+                    {enabledFields.packType && (
+                      <div className="space-y-2">
+                        <Label htmlFor="packType">Pack Type</Label>
+                        <Input
+                          id="packType"
+                          placeholder="Enter pack type and press Enter"
+                          value={tempInputs.packType}
+                          onChange={(e) =>
+                            setTempInputs((prev) => ({ ...prev, packType: e.target.value }))
+                          }
+                          onKeyDown={(e) => handleChipInputKeyDown(e, 'packType')}
+                          disabled={!enabledFields.packType}
+                        />
+                        {formData.packType.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {formData.packType.map((value, index) => (
+                              <Badge
+                                key={index}
+                                variant="secondary"
+                                className="cursor-pointer hover:bg-secondary/80"
+                                onClick={() => handleChipEdit('packType', index)}
+                              >
+                                {value}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleChipDelete('packType', index);
+                                  }}
+                                  className="ml-2 hover:bg-secondary/60 rounded-full p-0.5"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Size Field */}
+                    {enabledFields.size && (
+                      <div className="space-y-2">
+                        <Label htmlFor="size">Size</Label>
+                        <Input
+                          id="size"
+                          placeholder="Enter size and press Enter"
+                          value={tempInputs.size}
+                          onChange={(e) =>
+                            setTempInputs((prev) => ({ ...prev, size: e.target.value }))
+                          }
+                          onKeyDown={(e) => handleChipInputKeyDown(e, 'size')}
+                          disabled={!enabledFields.size}
+                        />
+                        {formData.size.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {formData.size.map((value, index) => (
+                              <Badge
+                                key={index}
+                                variant="secondary"
+                                className="cursor-pointer hover:bg-secondary/80"
+                                onClick={() => handleChipEdit('size', index)}
+                              >
+                                {value}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleChipDelete('size', index);
+                                  }}
+                                  className="ml-2 hover:bg-secondary/60 rounded-full p-0.5"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Weight Field */}
+                    {enabledFields.weight && (
+                      <div className="space-y-2">
+                        <Label htmlFor="weight">Weight</Label>
+                        <Input
+                          id="weight"
+                          placeholder="Enter weight and press Enter"
+                          value={tempInputs.weight}
+                          onChange={(e) =>
+                            setTempInputs((prev) => ({ ...prev, weight: e.target.value }))
+                          }
+                          onKeyDown={(e) => handleChipInputKeyDown(e, 'weight')}
+                          disabled={!enabledFields.weight}
+                        />
+                        {formData.weight.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {formData.weight.map((value, index) => (
+                              <Badge
+                                key={index}
+                                variant="secondary"
+                                className="cursor-pointer hover:bg-secondary/80"
+                                onClick={() => handleChipEdit('weight', index)}
+                              >
+                                {value}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleChipDelete('weight', index);
+                                  }}
+                                  className="ml-2 hover:bg-secondary/60 rounded-full p-0.5"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                </div>
+                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">

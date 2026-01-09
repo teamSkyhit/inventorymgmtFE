@@ -58,8 +58,7 @@ export default function BarcodeLabel({ product, store, productName }) {
 
   const storeName = store?.name || 'STORE';
   const storeLocation = store?.city || '';
-  const storePhone = '+91 9701702827';
-  const storeInfo = [storeLocation, storePhone].filter(Boolean).join('. ');
+  const storeInfo = storeLocation || '';
 
   const displayProductName = productName || product.name || 'PRODUCT';
   const productCode = product.sku || product.barcode || '';
@@ -98,7 +97,7 @@ export default function BarcodeLabel({ product, store, productName }) {
         }
 
         .store-name {
-          font-size: 8px;
+          font-size: 9px;
           font-weight: bold;
           text-transform: uppercase;
           line-height: 1.1;
@@ -108,13 +107,6 @@ export default function BarcodeLabel({ product, store, productName }) {
           white-space: nowrap;
         }
 
-        .store-phone {
-          font-size: 6px;
-          font-weight: bold;
-          text-align: right;
-          line-height: 1.1;
-          white-space: nowrap;
-        }
 
         .label-body {
           display: flex;
@@ -243,14 +235,11 @@ export default function BarcodeLabel({ product, store, productName }) {
         }
       `}</style>
 
-      {/* Header: Store Name and Phone */}
+      {/* Header: Store Name */}
       <div className="label-header">
         <div className="store-info">
-          <div className="store-name">SRI GAYATRI POOJA STORES</div>
+          <div className="store-name">SRI OM GAYATRI POOJA STORES</div>
         </div>
-        {storePhone && (
-          <div className="store-phone">{storePhone}</div>
-        )}
       </div>
 
       {/* Body: Product Info and Barcode */}

@@ -121,7 +121,7 @@ function AdminLayoutComponent({ children }) {
                 height={96}
                 className="w-[6rem] h-[6rem] object-contain"
               />
-              <span className="text-lg sm:text-3xl">SRI GAYATRI POOJA STORES</span>
+              <span className="text-lg sm:text-3xl">SRI OM GAYATRI POOJA STORES</span>
             </Link>
           </div>
 
