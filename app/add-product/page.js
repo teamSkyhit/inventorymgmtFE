@@ -112,6 +112,12 @@ export default function AddProductPage() {
       100000000000 + Math.random() * 900000000000
     ).toString();
     setFormData((prev) => ({ ...prev, barcode }));
+    // Clear barcode error when generating a new barcode
+    setErrors((prev) => {
+      const newErrors = { ...prev };
+      delete newErrors.barcode;
+      return newErrors;
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -142,14 +148,14 @@ export default function AddProductPage() {
       // Prepare data for validation
       const dataToValidate = {
         ...formData,
-        mrp: formData.mrp ? Number(formData.mrp) : 0,
+        mrp: formData.mrp ? Number(formData.mrp) : null,
         salePrice: formData.salePrice ? Number(formData.salePrice) : null,
         modelType: modelTypeStr,
         packType: packTypeStr,
         size: sizeStr,
         weight: weightStr,
         quantity: formData.quantity ? Number(formData.quantity) : 0,
-        minStockLevel: formData.minStockLevel ? Number(formData.minStockLevel) : null,
+        minStockLevel: formData.minStockLevel && formData.minStockLevel !== '' ? Number(formData.minStockLevel) : null,
         allowNegativeStock: formData.allowNegativeStock !== undefined ? formData.allowNegativeStock : true,
         subcategoryId: formData.subcategoryId || undefined,
         shelfId: formData.shelfId || undefined,
@@ -198,6 +204,12 @@ export default function AddProductPage() {
         toast.success('Product added successfully!');
         router.push('/inventory');
       } else {
+        // Don't show error toast for session timeout - modal will handle it
+        if (response.sessionExpired) {
+          logger.warn('Session expired during product creation');
+          // Session timeout modal will be shown automatically
+          return;
+        }
         logger.error('Product creation failed:', response.message);
         toast.error(response.message || 'Failed to add product');
       }
@@ -242,9 +254,7 @@ export default function AddProductPage() {
         break;
         
       case 'mrp':
-        if (!value || value === '') {
-          fieldErrors.mrp = 'MRP is required';
-        } else {
+        if (value && value !== '') {
           const num = Number(value);
           if (isNaN(num)) {
             fieldErrors.mrp = 'MRP must be a number';
@@ -264,6 +274,9 @@ export default function AddProductPage() {
               }
             }
           }
+        } else {
+          // MRP is optional, so clear error if empty
+          delete fieldErrors.mrp;
         }
         break;
         
@@ -430,7 +443,7 @@ export default function AddProductPage() {
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Product Name</Label>
+                  <Label htmlFor="name">Product Name <span className="text-destructive">*</span></Label>
                   <Input
                     id="name"
                     placeholder="Organic Whole Milk"
@@ -447,7 +460,7 @@ export default function AddProductPage() {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="category">Category</Label>
+                    <Label htmlFor="category">Category <span className="text-destructive">*</span></Label>
                     <Select
                     value={formData.categoryId}
                     onValueChange={(value) => handleChange('categoryId', value)}
@@ -469,7 +482,7 @@ export default function AddProductPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="subcategory">Subcategory</Label>
+                    <Label htmlFor="subcategory">Subcategory (Optional)</Label>
                     <Select
                     value={formData.subcategoryId}
                       onValueChange={(value) =>
@@ -564,7 +577,7 @@ export default function AddProductPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="barcode">Barcode</Label>
+                    <Label htmlFor="barcode">Barcode <span className="text-destructive">*</span></Label>
                     <div className="flex gap-2">
                       <Input
                         id="barcode"
@@ -592,10 +605,10 @@ export default function AddProductPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="shelf">Shelf Location</Label>
+                    <Label htmlFor="shelf">Shelf Location (Optional)</Label>
                     <Select
-                    value={formData.shelfId}
-                    onValueChange={(value) => handleChange('shelfId', value)}
+                    value={formData.shelfId || 'none'}
+                    onValueChange={(value) => handleChange('shelfId', value === 'none' ? '' : value)}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Select shelf location" />
@@ -603,14 +616,22 @@ export default function AddProductPage() {
                       <SelectContent>
                         {loadingShelves ? (
                           <div className="px-2 py-1.5 text-sm text-muted-foreground">Loading shelves...</div>
-                        ) : shelves.length === 0 ? (
-                          <div className="px-2 py-1.5 text-sm text-muted-foreground">No shelves available. Create shelves first.</div>
                         ) : (
-                          shelves.map((shelf) => (
-                            <SelectItem key={shelf.id} value={shelf.id}>
-                              {shelf.name}
+                          <>
+                            <SelectItem value="none" className="text-muted-foreground italic">
+                              None (Clear selection)
                             </SelectItem>
-                          ))
+                            {shelves.length > 0 && (
+                              shelves.map((shelf) => (
+                                <SelectItem key={shelf.id} value={shelf.id}>
+                                  {shelf.name}
+                                </SelectItem>
+                              ))
+                            )}
+                            {shelves.length === 0 && (
+                              <div className="px-2 py-1.5 text-sm text-muted-foreground">No shelves available. Create shelves first.</div>
+                            )}
+                          </>
                         )}
                       </SelectContent>
                     </Select>
@@ -619,7 +640,7 @@ export default function AddProductPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="mrp">MRP (Maximum Retail Price)</Label>
+                    <Label htmlFor="mrp">MRP (Maximum Retail Price) (Optional)</Label>
                     <Input
                       id="mrp"
                       type="number"
@@ -631,11 +652,13 @@ export default function AddProductPage() {
                       onChange={(e) => handleChange('mrp', e.target.value)}
                       onBlur={(e) => handleBlur('mrp', e.target.value)}
                       className={errors.mrp ? 'border-destructive' : ''}
-                      required
                     />
                     {errors.mrp && (
                       <p className="text-sm text-destructive">{errors.mrp}</p>
                     )}
+                    <p className="text-xs text-muted-foreground">
+                      Leave empty if MRP is not applicable
+                    </p>
                   </div>
 
                   <div className="space-y-2">
@@ -667,7 +690,7 @@ export default function AddProductPage() {
                     {/* Model Type Field */}
                     {enabledFields.modelType && (
                       <div className="space-y-2">
-                        <Label htmlFor="modelType">Model Type</Label>
+                        <Label htmlFor="modelType">Model Type (Optional)</Label>
                         <Input
                           id="modelType"
                           placeholder="Enter model type and press Enter"
@@ -708,7 +731,7 @@ export default function AddProductPage() {
                     {/* Pack Type Field */}
                     {enabledFields.packType && (
                       <div className="space-y-2">
-                        <Label htmlFor="packType">Pack Type</Label>
+                        <Label htmlFor="packType">Pack Type (Optional)</Label>
                         <Input
                           id="packType"
                           placeholder="Enter pack type and press Enter"
@@ -749,7 +772,7 @@ export default function AddProductPage() {
                     {/* Size Field */}
                     {enabledFields.size && (
                       <div className="space-y-2">
-                        <Label htmlFor="size">Size</Label>
+                        <Label htmlFor="size">Size (Optional)</Label>
                         <Input
                           id="size"
                           placeholder="Enter size and press Enter"
@@ -790,7 +813,7 @@ export default function AddProductPage() {
                     {/* Weight Field */}
                     {enabledFields.weight && (
                       <div className="space-y-2">
-                        <Label htmlFor="weight">Weight</Label>
+                        <Label htmlFor="weight">Weight (Optional)</Label>
                         <Input
                           id="weight"
                           placeholder="Enter weight and press Enter"
@@ -832,7 +855,7 @@ export default function AddProductPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="quantity">Quantity</Label>
+                    <Label htmlFor="quantity">Quantity (Optional)</Label>
                     <Input
                       id="quantity"
                       type="number"
@@ -885,7 +908,7 @@ export default function AddProductPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="description">Description/Notes</Label>
+                  <Label htmlFor="description">Description/Notes (Optional)</Label>
                   <Textarea
                     id="description"
                     placeholder="Organic Whole Milk, 1 Gallon. Refrigerate after opening. Best by date printed on bottle."
@@ -911,7 +934,7 @@ export default function AddProductPage() {
                 <ImageUpload
                   value={formData.image}
                   onChange={(imageUrl) => handleChange('image', imageUrl)}
-                  label="Product Image"
+                  label="Product Image (Optional)"
                 />
 
                 <div className="flex gap-4 justify-end">

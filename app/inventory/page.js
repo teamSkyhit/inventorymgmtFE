@@ -49,7 +49,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import Loader from '@/components/ui/loader';
 import { useAuth } from '@/lib/auth-context';
 import { useCommon } from '@/lib/common-context';
-import { productsAPI, storesAPI, storeInventoryAPI } from '@/lib/api';
+import { productsAPI, storesAPI, storeInventoryAPI, shelvesAPI } from '@/lib/api';
 import logger from '@/lib/logger';
 import { productSchema, formatZodError, getFieldErrors } from '@/lib/validations';
 import { cleanShelfName } from '@/lib/utils';
@@ -90,6 +90,8 @@ export default function InventoryPage() {
   const [isPrinting, setIsPrinting] = useState(false);
   const [previewProduct, setPreviewProduct] = useState(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [editShelves, setEditShelves] = useState([]);
+  const [loadingEditShelves, setLoadingEditShelves] = useState(false);
   const { user } = useAuth();
   const { categories } = useCommon();
 
@@ -134,6 +136,23 @@ export default function InventoryPage() {
       toast.error('Failed to load products');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchEditShelves = async () => {
+    if (!user?.token) return;
+    try {
+      setLoadingEditShelves(true);
+      const response = await shelvesAPI.getAll(user.token);
+      if (response.success) {
+        setEditShelves(response.data || []);
+      } else {
+        logger.error('Failed to fetch shelves:', response.message);
+      }
+    } catch (error) {
+      logger.error('Error fetching shelves:', error);
+    } finally {
+      setLoadingEditShelves(false);
     }
   };
 
@@ -770,6 +789,7 @@ export default function InventoryPage() {
       categories?.find((cat) => cat.id === product.categoryId)?.subcategories ||
       [];
     setEditSubcategories(subs);
+    fetchEditShelves(); // Fetch shelves when opening edit modal
     setIsEditModalOpen(true);
   };
 
@@ -1224,20 +1244,34 @@ export default function InventoryPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="shelfId">Shelf Location</Label>
+                  <Label htmlFor="shelfId">Shelf Location (Optional)</Label>
                   <Select
-                    value={formData.shelfId}
-                    onValueChange={(value) => handleFormChange('shelfId', value)}
+                    value={formData.shelfId || 'none'}
+                    onValueChange={(value) => handleFormChange('shelfId', value === 'none' ? '' : value)}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select shelf location" />
                     </SelectTrigger>
                     <SelectContent>
-                      {shelves.map((shelf) => (
-                        <SelectItem key={shelf} value={shelf}>
-                          {shelf}
-                        </SelectItem>
-                      ))}
+                      {loadingEditShelves ? (
+                        <div className="px-2 py-1.5 text-sm text-muted-foreground">Loading shelves...</div>
+                      ) : (
+                        <>
+                          <SelectItem value="none" className="text-muted-foreground italic">
+                            None (Clear selection)
+                          </SelectItem>
+                          {editShelves.length > 0 && (
+                            editShelves.map((shelf) => (
+                              <SelectItem key={shelf.id} value={shelf.id}>
+                                {shelf.name}
+                              </SelectItem>
+                            ))
+                          )}
+                          {editShelves.length === 0 && !loadingEditShelves && (
+                            <div className="px-2 py-1.5 text-sm text-muted-foreground">No shelves available. Create shelves first.</div>
+                          )}
+                        </>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
