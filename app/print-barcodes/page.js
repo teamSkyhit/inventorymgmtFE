@@ -253,11 +253,11 @@ export default function PrintBarcodesPage() {
             ${productCode ? `<div class="sku-code">${escapeHtml(productCode)}</div>` : ''}
             <div class="pricing-section">
               <div class="price-row selling-price">
-                <span class="price-label">${escapeHtml(storeCode)} Rs.:</span>
+                <span class="price-label">${escapeHtml(storeCode)}:</span>
                 <span class="price-value selling-price">₹${Number(sellingPrice).toFixed(2)}</span>
               </div>
               <div class="price-row mrp-row">
-                <span class="price-label">MRP Rs.:</span>
+                <span class="price-label">MRP:</span>
                 <span class="price-value mrp">₹${Number(mrp).toFixed(2)}</span>
                 <span class="tax-info">(Incl of All Taxes)</span>
               </div>

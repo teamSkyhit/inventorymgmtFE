@@ -251,11 +251,11 @@ export default function BarcodeLabel({ product, store, productName }) {
           </div>
           <div className="pricing-info">
             <div className="price-row">
-              <span className="price-label">{storeName.substring(0, 3).toUpperCase()} Rs.:</span>
+              <span className="price-label">{storeName.substring(0, 3).toUpperCase()}:</span>
               <span className="price-value">₹{Number(sellingPrice).toFixed(2)}</span>
             </div>
             <div className="price-row mrp-row">
-              <span className="price-label">MRP Rs.:</span>
+              <span className="price-label">MRP:</span>
               <span className="price-value">₹{Number(mrp).toFixed(2)}</span>
               <span className="tax-info">(Incl of All Taxes)</span>
             </div>

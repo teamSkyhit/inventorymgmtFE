@@ -30,7 +30,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Search, MoreVertical, Edit, Trash2, Plus, Printer } from 'lucide-react';
+import { Search, MoreVertical, Edit, Trash2, Plus, Printer, ChevronDown, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { toast } from 'sonner';
@@ -52,8 +52,8 @@ import { useCommon } from '@/lib/common-context';
 import { productsAPI, storesAPI, storeInventoryAPI, shelvesAPI } from '@/lib/api';
 import logger from '@/lib/logger';
 import { productSchema, formatZodError, getFieldErrors } from '@/lib/validations';
-import { cleanShelfName } from '@/lib/utils';
-import ProductAttributes from '@/components/product-attributes';
+import { cleanShelfName, formatIndianCurrency } from '@/lib/utils';
+// import ProductAttributes from '@/components/product-attributes'; // Commented out - using variants instead
 
 export default function InventoryPage() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -70,6 +70,17 @@ export default function InventoryPage() {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [editErrors, setEditErrors] = useState({});
+  const [editingVariants, setEditingVariants] = useState([]);
+  const [editingVariant, setEditingVariant] = useState(null);
+  const [isVariantEditModalOpen, setIsVariantEditModalOpen] = useState(false);
+  const [variantFormData, setVariantFormData] = useState({
+    size: '',
+    modelType: '',
+    barcode: '',
+    mrp: '',
+    salePrice: '',
+    quantity: '',
+  });
   const [formData, setFormData] = useState({
     name: '',
     categoryId: '',
@@ -79,6 +90,7 @@ export default function InventoryPage() {
     salePrice: '',
     modelType: '',
     packType: '',
+    size: '', // For variants
     quantity: '',
     minStockLevel: '',
     allowNegativeStock: true,
@@ -92,6 +104,7 @@ export default function InventoryPage() {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [editShelves, setEditShelves] = useState([]);
   const [loadingEditShelves, setLoadingEditShelves] = useState(false);
+  const [expandedProducts, setExpandedProducts] = useState(new Set()); // Track expanded parent products
   const { user } = useAuth();
   const { categories } = useCommon();
 
@@ -120,14 +133,11 @@ export default function InventoryPage() {
     if (!user?.token) return;
     try {
       setLoading(true);
-      const response = await productsAPI.getAll(user.token, { limit: 1000 });
+      // Fetch grouped products (parent products with variants)
+      const response = await productsAPI.getAll(user.token, { grouped: true, limit: 1000 });
       if (response.success) {
-        // Ensure productAttributes is included in the response
-        const productsWithAttributes = (response.data?.products || response.data || []).map(product => ({
-          ...product,
-          productAttributes: product.productAttributes || []
-        }));
-        setProducts(productsWithAttributes);
+        // productAttributes removed - using variants instead
+        setProducts(response.data?.products || response.data || []);
       } else {
         toast.error(response.message || 'Failed to load products');
       }
@@ -221,33 +231,65 @@ export default function InventoryPage() {
 
   const filteredProducts = useMemo(() => {
     return productsWithStoreInventory.filter((product) => {
-      const matchesSearch =
+      // Check if product matches search (including variants)
+      const productMatchesSearch =
         product.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         product.barcode?.includes(searchTerm) ||
         product.sku?.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      // Check if any variant matches search
+      const variantMatchesSearch = product.variants?.some(variant =>
+        variant.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        variant.barcode?.includes(searchTerm) ||
+        variant.sku?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        variant.size?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+      
+      const matchesSearch = productMatchesSearch || variantMatchesSearch || !searchTerm;
+      
       const matchesCategory =
         categoryFilter === 'all' ||
         product.categoryId === categoryFilter ||
         product.category?.name === categoryFilter;
+      
       const matchesShelf =
         shelfFilter === 'all' ||
         product.shelfId === shelfFilter ||
-        product.shelf?.id === shelfFilter;
+        product.shelf?.id === shelfFilter ||
+        product.variants?.some(v => v.shelfId === shelfFilter || v.shelf?.id === shelfFilter);
+      
+      // Calculate total stock for parent products
+      const totalStock = product.variants && product.variants.length > 0
+        ? product.variants.reduce((sum, v) => sum + (v.quantity || 0), 0)
+        : (product.quantity || 0);
+      
       const matchesStock =
         stockFilter === 'all' ||
-        (stockFilter === 'low' && product.quantity < 10) ||
-        (stockFilter === 'out' && product.quantity === 0);
+        (stockFilter === 'low' && totalStock < 10) ||
+        (stockFilter === 'out' && totalStock === 0);
 
       return matchesSearch && matchesCategory && matchesShelf && matchesStock;
     });
   }, [productsWithStoreInventory, searchTerm, categoryFilter, shelfFilter, stockFilter]);
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (id, productName = '', variantCount = 0) => {
     if (!user?.token) return;
+    
+    // Show confirmation with cascade warning if parent has variants
+    const confirmMessage = variantCount > 0
+      ? `Are you sure you want to delete "${productName}"? This will also delete ${variantCount} variant(s). This action cannot be undone.`
+      : `Are you sure you want to delete "${productName}"? This action cannot be undone.`;
+    
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+    
     try {
       const response = await productsAPI.delete(id, user.token);
       if (response.success) {
-        toast.success('Product deleted successfully');
+        toast.success(variantCount > 0 
+          ? `Product and ${variantCount} variant(s) deleted successfully`
+          : 'Product deleted successfully');
         fetchProducts();
       } else {
         toast.error(response.message || 'Failed to delete product');
@@ -255,6 +297,37 @@ export default function InventoryPage() {
     } catch (error) {
       logger.error('Error deleting product:', error);
       toast.error('Failed to delete product');
+    }
+  };
+
+  const toggleExpandProduct = (productId) => {
+    setExpandedProducts(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(productId)) {
+        newSet.delete(productId);
+      } else {
+        newSet.add(productId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleDeleteVariant = async (variantId, isLastVariant = false) => {
+    if (!user?.token) return;
+    
+    try {
+      const response = await productsAPI.deleteVariant(variantId, user.token);
+      if (response.success) {
+        toast.success(isLastVariant
+          ? 'Variant and parent product deleted successfully'
+          : 'Variant deleted successfully');
+        fetchProducts();
+      } else {
+        toast.error(response.message || 'Failed to delete variant');
+      }
+    } catch (error) {
+      logger.error('Error deleting variant:', error);
+      toast.error('Failed to delete variant');
     }
   };
 
@@ -661,11 +734,11 @@ export default function InventoryPage() {
             <!-- Pricing Section (Below SKU) -->
             <div class="pricing-section">
               <div class="price-row selling-price">
-                <span class="price-label">${escapedStoreCode} Rs.:</span>
+                <span class="price-label">${escapedStoreCode}:</span>
                 <span class="price-value selling-price">₹${Number(sellingPrice).toFixed(2)}</span>
               </div>
               <div class="price-row mrp-row">
-                <span class="price-label">MRP Rs.:</span>
+                <span class="price-label">MRP:</span>
                 <span class="price-value mrp">₹${Number(mrp).toFixed(2)}</span>
                 <span class="tax-info">(Incl of All Taxes)</span>
               </div>
@@ -763,30 +836,61 @@ export default function InventoryPage() {
     }
   };
 
-  const handleEdit = (product) => {
+  const handleEdit = async (product) => {
     // Close detail modal if it's open
     if (isDetailOpen) {
       closeProductDetail();
     }
-    setEditingProduct(product);
+    
+    // Fetch product with variants using the variants endpoint
+    let productWithVariants = product;
+    try {
+      const response = await productsAPI.getWithVariants(product.id, user?.token);
+      if (response.success && response.data) {
+        productWithVariants = response.data;
+      } else {
+        // Fallback to getById if getWithVariants fails
+        const fallbackResponse = await productsAPI.getById(product.id, user?.token);
+        if (fallbackResponse.success && fallbackResponse.data) {
+          productWithVariants = fallbackResponse.data;
+        }
+      }
+    } catch (error) {
+      logger.error('Error fetching product with variants:', error);
+      // Continue with original product if fetch fails
+    }
+    
+    setEditingProduct(productWithVariants);
+    // Set variants from the product data
+    const variants = productWithVariants.variants || [];
+    setEditingVariants(variants);
+    
+    // Debug log
+    console.log('Editing product:', productWithVariants);
+    console.log('Variants found:', variants);
+    
+    // Check if this is a variant
+    const isVariant = !!productWithVariants.parentProductId;
+    
     setFormData({
-      name: product.name || '',
-      categoryId: product.categoryId || '',
-      subcategoryId: product.subcategoryId || '',
-      barcode: product.barcode || '',
-      mrp: product.mrp?.toString() || '',
-      salePrice: product.salePrice?.toString() || '',
-      modelType: product.modelType || '',
-      packType: product.packType || '',
-      quantity: product.quantity?.toString() || '',
-      minStockLevel: product.minStockLevel?.toString() || '',
-      allowNegativeStock: product.allowNegativeStock !== undefined ? product.allowNegativeStock : true,
-      shelfId: product.shelfId || '',
-      description: product.description || '',
-      image: product.image || '',
+      name: productWithVariants.name || '',
+      categoryId: productWithVariants.categoryId || '',
+      subcategoryId: productWithVariants.subcategoryId || '',
+      barcode: productWithVariants.barcode || '',
+      mrp: productWithVariants.mrp?.toString() || '',
+      salePrice: productWithVariants.salePrice?.toString() || '',
+      modelType: productWithVariants.modelType || '',
+      packType: productWithVariants.packType || '',
+      size: productWithVariants.size || '', // For variants
+      quantity: productWithVariants.quantity?.toString() || '',
+      minStockLevel: productWithVariants.minStockLevel?.toString() || '',
+      allowNegativeStock: productWithVariants.allowNegativeStock !== undefined ? productWithVariants.allowNegativeStock : true,
+      shelfId: productWithVariants.shelfId || '',
+      description: productWithVariants.description || '',
+      image: productWithVariants.image || '',
     });
     const subs =
-      categories?.find((cat) => cat.id === product.categoryId)?.subcategories ||
+      categories?.find((cat) => cat.id === productWithVariants.categoryId)?.subcategories ||
       [];
     setEditSubcategories(subs);
     fetchEditShelves(); // Fetch shelves when opening edit modal
@@ -799,7 +903,37 @@ export default function InventoryPage() {
     if (!user?.token || !editingProduct) return;
     
     try {
-      // Prepare data for validation
+      const isVariant = !!editingProduct.parentProductId;
+      
+      // For variants, only allow editing size, model, price, barcode, stock
+      if (isVariant) {
+        const payload = {
+          size: formData.size || null,
+          modelType: formData.modelType || null,
+          barcode: formData.barcode,
+          mrp: formData.mrp ? Number(formData.mrp) : null,
+          salePrice: formData.salePrice ? Number(formData.salePrice) : null,
+          quantity: formData.quantity ? Number(formData.quantity) : 0,
+        };
+
+        const response = await productsAPI.update(
+          editingProduct.id,
+          payload,
+          user.token
+        );
+        if (response.success) {
+          logger.info('Variant updated successfully:', { id: editingProduct.id });
+          toast.success('Variant updated successfully');
+          setIsEditModalOpen(false);
+          fetchProducts();
+        } else {
+          logger.error('Variant update failed:', response.message);
+          toast.error(response.message || 'Failed to update variant');
+        }
+        return;
+      }
+
+      // For parent products, validate and update shared fields
       const dataToValidate = {
         ...formData,
         mrp: formData.mrp ? Number(formData.mrp) : 0,
@@ -1020,108 +1154,294 @@ export default function InventoryPage() {
                           product.image || '/images/product-placeholder.png';
                         const modelTypeLabel = product.modelType ? 
                           product.modelType.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) : '—';
+                        
+                        // Check if this is a parent product with variants
+                        const hasVariants = product.variants && product.variants.length > 0;
+                        const variantCount = hasVariants ? product.variants.length : 0;
+                        const isExpanded = expandedProducts.has(product.id);
+                        const totalStock = hasVariants 
+                          ? product.variants.reduce((sum, v) => sum + (v.quantity || 0), 0)
+                          : (product.quantity || 0);
+                        
+                        // Calculate price range for variants
+                        const priceRange = hasVariants && product.variants.length > 0
+                          ? (() => {
+                              const prices = product.variants
+                                .map(v => Number(v.salePrice || v.price || v.mrp || 0))
+                                .filter(p => p > 0);
+                              if (prices.length === 0) return null;
+                              const min = Math.min(...prices);
+                              const max = Math.max(...prices);
+                              return min === max 
+                                ? `₹${formatIndianCurrency(min)}` 
+                                : `₹${formatIndianCurrency(min)} - ₹${formatIndianCurrency(max)}`;
+                            })()
+                          : null;
+                        
                         return (
-                          <TableRow
-                            key={product.id}
-                            className="cursor-pointer"
-                            onClick={(event) => {
-                              if (
-                                event.target.closest &&
-                                event.target.closest('[data-row-action="true"]')
-                              ) {
-                                return;
-                              }
-                              openProductDetail(product);
-                            }}
-                          >
-                            <TableCell>
-                              <div className="w-12 h-12 relative rounded overflow-hidden bg-muted">
-                                <Image
-                                  src={imageSrc}
-                                  alt={product.name || 'Product'}
-                                  fill
-                                  className="object-cover"
-                                  unoptimized
-                                />
-                              </div>
-                            </TableCell>
-                            <TableCell className="font-mono text-sm text-muted-foreground">
-                              {product.sku || '—'}
-                            </TableCell>
-                            <TableCell className="font-medium">
-                              {product.name}
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="outline">{categoryName}</Badge>
-                            </TableCell>
-                            <TableCell className="text-muted-foreground font-mono text-sm">
-                              {product.barcode}
-                            </TableCell>
-                            <TableCell>
-                              {modelTypeLabel !== '—' && (
-                                <Badge variant="secondary">{modelTypeLabel}</Badge>
-                              )}
-                              {modelTypeLabel === '—' && '—'}
-                            </TableCell>
-                            <TableCell>
-                              <Badge
-                                variant={
-                                  product.quantity < 10
-                                    ? 'destructive'
-                                    : 'default'
+                          <>
+                            {/* Parent Product Row */}
+                            <TableRow
+                              key={product.id}
+                              className={`cursor-pointer ${hasVariants ? 'bg-muted/30' : ''}`}
+                              onClick={(event) => {
+                                if (
+                                  event.target.closest &&
+                                  (event.target.closest('[data-row-action="true"]') ||
+                                   event.target.closest('[data-expand-action="true"]'))
+                                ) {
+                                  return;
                                 }
-                              >
-                                {product.quantity}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="font-medium">
-                              {salePrice ? (
-                                <div>
-                                  <span className="line-through text-muted-foreground text-sm">
-                                    ₹{mrp.toFixed(2)}
-                                  </span>
-                                  <span className="ml-2 text-destructive font-semibold">
-                                    ₹{salePrice.toFixed(2)}
-                                  </span>
+                                // For parent products, just toggle expand/collapse instead of opening detail
+                                if (hasVariants) {
+                                  toggleExpandProduct(product.id);
+                                } else {
+                                  openProductDetail(product);
+                                }
+                              }}
+                            >
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  {hasVariants && (
+                                    <button
+                                      data-expand-action="true"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleExpandProduct(product.id);
+                                      }}
+                                      className="p-1 hover:bg-muted rounded"
+                                    >
+                                      {isExpanded ? (
+                                        <ChevronDown className="h-4 w-4" />
+                                      ) : (
+                                        <ChevronRight className="h-4 w-4" />
+                                      )}
+                                    </button>
+                                  )}
+                                  <div className="w-12 h-12 relative rounded overflow-hidden bg-muted">
+                                    <Image
+                                      src={imageSrc}
+                                      alt={product.name || 'Product'}
+                                      fill
+                                      className="object-cover"
+                                      unoptimized
+                                    />
+                                  </div>
                                 </div>
-                              ) : (
-                                `₹${displayPrice.toFixed(2)}`
-                              )}
-                            </TableCell>
-                            <TableCell className="font-mono">
-                              {shelfName}
-                            </TableCell>
-                            <TableCell>
-                              <div data-row-action="true">
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="icon">
-                                      <MoreVertical className="h-4 w-4" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent>
-                                    <DropdownMenuItem
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleEdit(product);
-                                      }}
+                              </TableCell>
+                              <TableCell className="font-mono text-sm text-muted-foreground">
+                                {hasVariants ? '—' : (product.sku || '—')}
+                              </TableCell>
+                              <TableCell className="font-medium">
+                                {product.name}
+                                {hasVariants && (
+                                  <span className="ml-2 text-xs text-muted-foreground">
+                                    ({variantCount} variant{variantCount !== 1 ? 's' : ''})
+                                  </span>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="outline">{categoryName}</Badge>
+                              </TableCell>
+                              <TableCell className="text-muted-foreground font-mono text-sm">
+                                {hasVariants ? '—' : (product.barcode || '—')}
+                              </TableCell>
+                              <TableCell>
+                                {modelTypeLabel !== '—' && (
+                                  <Badge variant="secondary">{modelTypeLabel}</Badge>
+                                )}
+                                {modelTypeLabel === '—' && '—'}
+                              </TableCell>
+                              <TableCell>
+                                <Badge
+                                  variant={
+                                    totalStock < 10
+                                      ? 'destructive'
+                                      : 'default'
+                                  }
+                                >
+                                  {totalStock}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="font-medium">
+                                {hasVariants ? (
+                                  '—'
+                                ) : salePrice ? (
+                                  <div>
+                                    <span className="line-through text-muted-foreground text-sm">
+                                      ₹{formatIndianCurrency(mrp)}
+                                    </span>
+                                    <span className="ml-2 text-destructive font-semibold">
+                                      ₹{formatIndianCurrency(salePrice)}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  `₹${formatIndianCurrency(displayPrice)}`
+                                )}
+                              </TableCell>
+                              <TableCell className="font-mono">
+                                {shelfName}
+                              </TableCell>
+                              <TableCell>
+                                <div data-row-action="true">
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button variant="ghost" size="icon">
+                                        <MoreVertical className="h-4 w-4" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent>
+                                      <DropdownMenuItem
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleEdit(product);
+                                        }}
+                                      >
+                                        Edit
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        className="text-destructive"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleDelete(product.id, product.name, variantCount);
+                                        }}
+                                      >
+                                        Delete
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                            
+                            {/* Variant Rows (shown when expanded) */}
+                            {hasVariants && isExpanded && product.variants.map((variant) => {
+                              const variantMrp = Number(variant.mrp || 0);
+                              const variantSalePrice = variant.salePrice ? Number(variant.salePrice) : null;
+                              const variantDisplayPrice = variantSalePrice || variantMrp;
+                              const variantImageSrc = variant.image || product.image || '/images/product-placeholder.png';
+                              const variantModelTypeLabel = variant.modelType ? 
+                                variant.modelType.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) : '—';
+                              const variantShelfName = variant.shelf?.name || variant.shelfId || '—';
+                              const displayName = variant.size 
+                                ? `${product.name} - ${variant.size}`
+                                : product.name;
+                              
+                              return (
+                                <TableRow
+                                  key={variant.id}
+                                  className="cursor-pointer bg-muted/10"
+                                  onClick={(event) => {
+                                    if (
+                                      event.target.closest &&
+                                      event.target.closest('[data-row-action="true"]')
+                                    ) {
+                                      return;
+                                    }
+                                    openProductDetail(variant);
+                                  }}
+                                >
+                                  <TableCell>
+                                    <div className="pl-8">
+                                      <div className="w-12 h-12 relative rounded overflow-hidden bg-muted">
+                                        <Image
+                                          src={variantImageSrc}
+                                          alt={displayName}
+                                          fill
+                                          className="object-cover"
+                                          unoptimized
+                                        />
+                                      </div>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="font-mono text-sm text-muted-foreground">
+                                    {variant.sku || '—'}
+                                  </TableCell>
+                                  <TableCell className="font-medium">
+                                    {displayName}
+                                  </TableCell>
+                                  <TableCell>
+                                    <Badge variant="outline">{categoryName}</Badge>
+                                  </TableCell>
+                                  <TableCell className="text-muted-foreground font-mono text-sm">
+                                    {variant.barcode}
+                                  </TableCell>
+                                  <TableCell>
+                                    {variantModelTypeLabel !== '—' && (
+                                      <Badge variant="secondary">{variantModelTypeLabel}</Badge>
+                                    )}
+                                    {variantModelTypeLabel === '—' && '—'}
+                                  </TableCell>
+                                  <TableCell>
+                                    <Badge
+                                      variant={
+                                        (variant.quantity || 0) < 10
+                                          ? 'destructive'
+                                          : 'default'
+                                      }
                                     >
-                                      Edit
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem
-                                      className="text-destructive"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleDelete(product.id);
-                                      }}
-                                    >
-                                      Delete
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              </div>
-                            </TableCell>
-                          </TableRow>
+                                      {variant.quantity || 0}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className="font-medium">
+                                    {variantSalePrice ? (
+                                      <div>
+                                        <span className="line-through text-muted-foreground text-sm">
+                                          ₹{formatIndianCurrency(variantMrp)}
+                                        </span>
+                                        <span className="ml-2 text-destructive font-semibold">
+                                          ₹{formatIndianCurrency(variantSalePrice)}
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      `₹${formatIndianCurrency(variantDisplayPrice)}`
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="font-mono">
+                                    {variantShelfName}
+                                  </TableCell>
+                                  <TableCell>
+                                    <div data-row-action="true">
+                                      <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                          <Button variant="ghost" size="icon">
+                                            <MoreVertical className="h-4 w-4" />
+                                          </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent>
+                                          <DropdownMenuItem
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleEdit(variant);
+                                            }}
+                                          >
+                                            Edit
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem
+                                            className="text-destructive"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              // Check if this is the last variant
+                                              const isLastVariant = product.variants.length === 1;
+                                              const confirmMessage = isLastVariant
+                                                ? `Are you sure you want to delete this variant? This is the last variant, so the parent product will also be deleted. This action cannot be undone.`
+                                                : `Are you sure you want to delete this variant? This action cannot be undone.`;
+                                              
+                                              if (confirm(confirmMessage)) {
+                                                handleDeleteVariant(variant.id, isLastVariant);
+                                              }
+                                            }}
+                                          >
+                                            Delete
+                                          </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                      </DropdownMenu>
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </>
                         );
                       })
                     ) : (
@@ -1161,87 +1481,138 @@ export default function InventoryPage() {
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
         <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Edit Product</DialogTitle>
+            <DialogTitle>
+              {editingProduct?.parentProductId ? 'Edit Variant' : editingProduct?.variants?.length > 0 ? 'Edit Product (Parent)' : 'Edit Product'}
+            </DialogTitle>
             <DialogDescription>
-              Update the product details below.
+              {editingProduct?.parentProductId 
+                ? 'Update variant-specific details (size, model, price, stock). Name and category are inherited from parent.'
+                : editingProduct?.variants?.length > 0
+                ? 'Update shared product details. Changes to name/category will apply to all variants.'
+                : 'Update the product details below.'}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleEditSubmit} className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="name">Product Name</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => handleFormChange('name', e.target.value)}
-                className={editErrors.name ? 'border-destructive' : ''}
-                required
-              />
-              {editErrors.name && (
-                <p className="text-sm text-destructive">{editErrors.name}</p>
-              )}
-            </div>
+            {!editingProduct?.parentProductId && (
+              <div className="space-y-2">
+                <Label htmlFor="name">Product Name</Label>
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => handleFormChange('name', e.target.value)}
+                  className={editErrors.name ? 'border-destructive' : ''}
+                  required
+                />
+                {editErrors.name && (
+                  <p className="text-sm text-destructive">{editErrors.name}</p>
+                )}
+                {editingProduct?.variants?.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Changing name will update all variants
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* 3-Column Layout for Product Information */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Column 1: Basic Information */}
               <div className="space-y-4 min-w-0">
-                <div className="space-y-2">
-                  <Label htmlFor="categoryId">Category</Label>
-                  <Select
-                    value={formData.categoryId}
-                    onValueChange={(value) => handleFormChange('categoryId', value)}
-                  >
-                    <SelectTrigger className={editErrors.categoryId ? 'border-destructive' : ''}>
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories?.map((cat) => (
-                        <SelectItem key={cat.id} value={cat.id}>
-                          {cat.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {editErrors.categoryId && (
-                    <p className="text-sm text-destructive">{editErrors.categoryId}</p>
-                  )}
-                </div>
+                {!editingProduct?.parentProductId && (
+                  <div className="space-y-2">
+                    <Label htmlFor="categoryId">Category</Label>
+                    <Select
+                      value={formData.categoryId}
+                      onValueChange={(value) => handleFormChange('categoryId', value)}
+                    >
+                      <SelectTrigger className={editErrors.categoryId ? 'border-destructive' : ''}>
+                        <SelectValue placeholder="Select category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories?.map((cat) => (
+                          <SelectItem key={cat.id} value={cat.id}>
+                            {cat.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {editErrors.categoryId && (
+                      <p className="text-sm text-destructive">{editErrors.categoryId}</p>
+                    )}
+                    {editingProduct?.variants?.length > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        Changing category will update all variants
+                      </p>
+                    )}
+                  </div>
+                )}
 
-                <div className="space-y-2">
-                  <Label htmlFor="subcategoryId">Subcategory</Label>
-                  <Select
-                    value={formData.subcategoryId}
-                    onValueChange={(value) =>
-                      handleFormChange('subcategoryId', value)
-                    }
-                    disabled={!formData.categoryId}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select subcategory" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {editSubcategories.map((subcat) => (
-                        <SelectItem key={subcat.id} value={subcat.id}>
-                          {subcat.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {!editingProduct?.parentProductId && (
+                  <div className="space-y-2">
+                    <Label htmlFor="subcategoryId">Subcategory</Label>
+                    <Select
+                      value={formData.subcategoryId}
+                      onValueChange={(value) =>
+                        handleFormChange('subcategoryId', value)
+                      }
+                      disabled={!formData.categoryId}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select subcategory" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {editSubcategories.map((subcat) => (
+                          <SelectItem key={subcat.id} value={subcat.id}>
+                            {subcat.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                
+                {/* Size field - only for variants */}
+                {editingProduct?.parentProductId && (
+                  <div className="space-y-2">
+                    <Label htmlFor="size">Size</Label>
+                    <Input
+                      id="size"
+                      value={formData.size || ''}
+                      onChange={(e) => handleFormChange('size', e.target.value)}
+                      placeholder="e.g., Small, Large, 500g"
+                    />
+                  </div>
+                )}
 
-                <div className="space-y-2">
-                  <Label htmlFor="barcode">Barcode</Label>
-                  <Input
-                    id="barcode"
-                    value={formData.barcode}
-                    onChange={(e) => handleFormChange('barcode', e.target.value)}
-                    className={editErrors.barcode ? 'border-destructive' : ''}
-                    required
-                  />
-                  {editErrors.barcode && (
-                    <p className="text-sm text-destructive">{editErrors.barcode}</p>
-                  )}
-                </div>
+                {/* Barcode - only for variants and single products, not for parent products */}
+                {editingProduct?.parentProductId || !editingProduct?.variants?.length ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="barcode">Barcode</Label>
+                    <Input
+                      id="barcode"
+                      value={formData.barcode}
+                      onChange={(e) => handleFormChange('barcode', e.target.value)}
+                      className={editErrors.barcode ? 'border-destructive' : ''}
+                      required
+                    />
+                    {editErrors.barcode && (
+                      <p className="text-sm text-destructive">{editErrors.barcode}</p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label htmlFor="barcode">Barcode</Label>
+                    <Input
+                      id="barcode"
+                      value="—"
+                      disabled
+                      className="bg-muted"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Parent products don't have barcodes. Each variant has its own barcode.
+                    </p>
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <Label htmlFor="shelfId">Shelf Location (Optional)</Label>
@@ -1277,78 +1648,91 @@ export default function InventoryPage() {
                 </div>
               </div>
 
-              {/* Column 2: Pricing & Stock */}
-              <div className="space-y-4 min-w-0">
-                <div className="space-y-2">
-                  <Label htmlFor="mrp">MRP (Maximum Retail Price)</Label>
-                  <Input
-                    id="mrp"
-                    type="number"
-                    step="0.01"
-                    value={formData.mrp}
-                    onChange={(e) => handleFormChange('mrp', e.target.value)}
-                    className={editErrors.mrp ? 'border-destructive' : ''}
-                    required
-                  />
-                  {editErrors.mrp && (
-                    <p className="text-sm text-destructive">{editErrors.mrp}</p>
-                  )}
-                </div>
+              {/* Column 2: Pricing & Stock - Hidden for parent products */}
+              {!editingProduct?.variants?.length && (
+                <div className="space-y-4 min-w-0">
+                  <div className="space-y-2">
+                    <Label htmlFor="mrp">MRP (Maximum Retail Price)</Label>
+                    <Input
+                      id="mrp"
+                      type="number"
+                      step="0.01"
+                      value={formData.mrp}
+                      onChange={(e) => handleFormChange('mrp', e.target.value)}
+                      className={editErrors.mrp ? 'border-destructive' : ''}
+                      required
+                    />
+                    {editErrors.mrp && (
+                      <p className="text-sm text-destructive">{editErrors.mrp}</p>
+                    )}
+                  </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="salePrice">Sale Price (Optional)</Label>
-                  <Input
-                    id="salePrice"
-                    type="number"
-                    step="0.01"
-                    value={formData.salePrice}
-                    onChange={(e) => handleFormChange('salePrice', e.target.value)}
-                    className={editErrors.salePrice ? 'border-destructive' : ''}
-                  />
-                  {editErrors.salePrice && (
-                    <p className="text-sm text-destructive">{editErrors.salePrice}</p>
-                  )}
-                  <p className="text-xs text-muted-foreground">
-                    Leave empty if no special offer price
-                  </p>
-                </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="salePrice">Sale Price (Optional)</Label>
+                    <Input
+                      id="salePrice"
+                      type="number"
+                      step="0.01"
+                      value={formData.salePrice}
+                      onChange={(e) => handleFormChange('salePrice', e.target.value)}
+                      className={editErrors.salePrice ? 'border-destructive' : ''}
+                    />
+                    {editErrors.salePrice && (
+                      <p className="text-sm text-destructive">{editErrors.salePrice}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Leave empty if no special offer price
+                    </p>
+                  </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="quantity">Quantity</Label>
-                  <Input
-                    id="quantity"
-                    type="number"
-                    value={formData.quantity}
-                    onChange={(e) =>
-                      handleFormChange('quantity', e.target.value)
-                    }
-                    className={editErrors.quantity ? 'border-destructive' : ''}
-                  />
-                  {editErrors.quantity && (
-                    <p className="text-sm text-destructive">{editErrors.quantity}</p>
-                  )}
-                </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="quantity">Quantity</Label>
+                    <Input
+                      id="quantity"
+                      type="number"
+                      value={formData.quantity}
+                      onChange={(e) =>
+                        handleFormChange('quantity', e.target.value)
+                      }
+                      className={editErrors.quantity ? 'border-destructive' : ''}
+                    />
+                    {editErrors.quantity && (
+                      <p className="text-sm text-destructive">{editErrors.quantity}</p>
+                    )}
+                  </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="minStockLevel">Minimum Stock Level (Optional)</Label>
-                  <Input
-                    id="minStockLevel"
-                    type="number"
-                    value={formData.minStockLevel}
-                    onChange={(e) => handleFormChange('minStockLevel', e.target.value)}
-                    className={editErrors.minStockLevel ? 'border-destructive' : ''}
-                  />
-                  {editErrors.minStockLevel && (
-                    <p className="text-sm text-destructive">{editErrors.minStockLevel}</p>
-                  )}
-                  <p className="text-xs text-muted-foreground">
-                    Override category default. Leave empty to use category default.
-                  </p>
+                  <div className="space-y-2">
+                    <Label htmlFor="minStockLevel">Minimum Stock Level (Optional)</Label>
+                    <Input
+                      id="minStockLevel"
+                      type="number"
+                      value={formData.minStockLevel}
+                      onChange={(e) => handleFormChange('minStockLevel', e.target.value)}
+                      className={editErrors.minStockLevel ? 'border-destructive' : ''}
+                    />
+                    {editErrors.minStockLevel && (
+                      <p className="text-sm text-destructive">{editErrors.minStockLevel}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Override category default. Leave empty to use category default.
+                    </p>
+                  </div>
                 </div>
-              </div>
+              )}
+              {/* For parent products, show message instead of pricing fields */}
+              {editingProduct?.variants?.length > 0 && (
+                <div className="space-y-4 min-w-0">
+                  <div className="space-y-2 p-4 bg-muted rounded-md">
+                    <p className="text-sm text-muted-foreground">
+                      Parent products don't have pricing or quantity. Each variant has its own pricing and stock.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Column 3: Product Attributes */}
               <div className="space-y-4 min-w-0">
+                {/* Model Type - for variants or standalone products */}
                 <div className="space-y-2">
                   <Label htmlFor="modelType">Model Type</Label>
                   <Select
@@ -1365,6 +1749,11 @@ export default function InventoryPage() {
                       <SelectItem value="THREE_D">3D</SelectItem>
                     </SelectContent>
                   </Select>
+                  {editingProduct?.parentProductId && (
+                    <p className="text-xs text-muted-foreground">
+                      Variant-specific model type
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -1411,19 +1800,122 @@ export default function InventoryPage() {
               />
             </div>
 
-            <ImageUpload
-              value={formData.image}
-              onChange={(value) => handleFormChange('image', value)}
-              label="Product Image"
-            />
+            {/* Image Upload - Featured Image for parent products, Product Image for variants/single */}
+            {!editingProduct?.parentProductId && (
+              <ImageUpload
+                value={formData.image}
+                onChange={(value) => handleFormChange('image', value)}
+                label={editingProduct?.variants?.length > 0 ? "Featured Image" : "Product Image"}
+              />
+            )}
+            {/* Variants can have their own images, but we'll handle that in variant edit modal */}
+            {editingProduct?.parentProductId && (
+              <ImageUpload
+                value={formData.image}
+                onChange={(value) => handleFormChange('image', value)}
+                label="Product Image"
+              />
+            )}
 
-            {editingProduct && editingProduct.id && (
+            {/* Variants Section - Always show for parent products */}
+            {editingProduct && !editingProduct.parentProductId && (
               <div className="space-y-4 border-t pt-4">
-                <ProductAttributes
-                  productId={editingProduct.id}
-                  token={user?.token}
-                  readonly={false}
-                />
+                <div className="flex items-center justify-between">
+                  <Label className="text-base font-semibold">Product Variants</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      // Open add variant dialog
+                      setVariantFormData({ size: '', modelType: '', barcode: '', mrp: '', salePrice: '', quantity: '' });
+                      setEditingVariant(null);
+                      setIsVariantEditModalOpen(true);
+                    }}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Variant
+                  </Button>
+                </div>
+                <div className="border rounded-md overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Size</TableHead>
+                        <TableHead>Model</TableHead>
+                        <TableHead>Barcode</TableHead>
+                        <TableHead>Price</TableHead>
+                        <TableHead>Stock</TableHead>
+                        <TableHead className="w-[100px]">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {((editingVariants.length > 0 ? editingVariants : editingProduct.variants) || []).map((variant) => (
+                        <TableRow key={variant.id}>
+                          <TableCell>{variant.size || '—'}</TableCell>
+                          <TableCell>{variant.modelType || '—'}</TableCell>
+                          <TableCell className="font-mono text-sm">{variant.barcode}</TableCell>
+                          <TableCell>
+                            ₹{formatIndianCurrency(Number(variant.salePrice || variant.price || variant.mrp || 0))}
+                          </TableCell>
+                          <TableCell>{variant.quantity || 0}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => {
+                                  setEditingVariant(variant);
+                                  setVariantFormData({
+                                    size: variant.size || '',
+                                    modelType: variant.modelType || '',
+                                    barcode: variant.barcode || '',
+                                    mrp: variant.mrp?.toString() || '',
+                                    salePrice: variant.salePrice?.toString() || '',
+                                    quantity: variant.quantity?.toString() || '',
+                                  });
+                                  setIsVariantEditModalOpen(true);
+                                }}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={async () => {
+                                  if (confirm('Are you sure you want to remove this variant?')) {
+                                    try {
+                                      const response = await productsAPI.deleteVariant(variant.id, user?.token);
+                                      if (response.success) {
+                                        toast.success('Variant removed successfully');
+                                        setEditingVariants(editingVariants.filter(v => v.id !== variant.id));
+                                        fetchProducts();
+                                      } else {
+                                        toast.error(response.message || 'Failed to remove variant');
+                                      }
+                                    } catch (error) {
+                                      logger.error('Error removing variant:', error);
+                                      toast.error('Failed to remove variant');
+                                    }
+                                  }
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                {((editingVariants.length === 0 && (!editingProduct.variants || editingProduct.variants.length === 0))) && (
+                  <div className="text-sm text-muted-foreground py-4 text-center border rounded-md">
+                    No variants added yet. Click "Add Variant" above to add size/weight variations.
+                  </div>
+                )}
               </div>
             )}
 
@@ -1436,6 +1928,151 @@ export default function InventoryPage() {
                 Cancel
               </Button>
               <Button type="submit">Save Changes</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Variant Edit/Add Modal */}
+      <Dialog open={isVariantEditModalOpen} onOpenChange={setIsVariantEditModalOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{editingVariant ? 'Edit Variant' : 'Add Variant'}</DialogTitle>
+            <DialogDescription>
+              {editingVariant 
+                ? 'Update variant details (size, model, price, stock)'
+                : 'Add a new variant to this product'}
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={async (e) => {
+            e.preventDefault();
+            if (!editingProduct || !user?.token) return;
+            
+            try {
+              const payload = {
+                size: variantFormData.size || null,
+                modelType: variantFormData.modelType || null,
+                barcode: variantFormData.barcode,
+                mrp: variantFormData.mrp ? Number(variantFormData.mrp) : null,
+                salePrice: variantFormData.salePrice ? Number(variantFormData.salePrice) : null,
+                quantity: variantFormData.quantity ? Number(variantFormData.quantity) : 0,
+              };
+
+              let response;
+              if (editingVariant) {
+                // Update existing variant
+                response = await productsAPI.update(editingVariant.id, payload, user.token);
+              } else {
+                // Add new variant
+                response = await productsAPI.addVariant(editingProduct.id, payload, user.token);
+              }
+
+              if (response.success) {
+                toast.success(editingVariant ? 'Variant updated successfully' : 'Variant added successfully');
+                setIsVariantEditModalOpen(false);
+                // Refresh variants list
+                const productResponse = await productsAPI.getWithVariants(editingProduct.id, user.token);
+                if (productResponse.success) {
+                  setEditingVariants(productResponse.data.variants || []);
+                  setEditingProduct(productResponse.data);
+                }
+                fetchProducts();
+              } else {
+                toast.error(response.message || 'Failed to save variant');
+              }
+            } catch (error) {
+              logger.error('Error saving variant:', error);
+              toast.error('Failed to save variant');
+            }
+          }} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="variant-size">Size *</Label>
+              <Input
+                id="variant-size"
+                value={variantFormData.size}
+                onChange={(e) => setVariantFormData(prev => ({ ...prev, size: e.target.value }))}
+                placeholder="e.g., Small, Large, 500g, 1kg"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="variant-modelType">Model Type</Label>
+              <Select
+                value={variantFormData.modelType}
+                onValueChange={(value) => setVariantFormData(prev => ({ ...prev, modelType: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select model type (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PLAIN">Plain</SelectItem>
+                  <SelectItem value="DESIGN">Design</SelectItem>
+                  <SelectItem value="TWO_D">2D</SelectItem>
+                  <SelectItem value="THREE_D">3D</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="variant-barcode">Barcode *</Label>
+              <Input
+                id="variant-barcode"
+                value={variantFormData.barcode}
+                onChange={(e) => setVariantFormData(prev => ({ ...prev, barcode: e.target.value }))}
+                placeholder="Unique barcode for this variant"
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="variant-mrp">MRP</Label>
+                <Input
+                  id="variant-mrp"
+                  type="number"
+                  step="0.01"
+                  value={variantFormData.mrp}
+                  onChange={(e) => setVariantFormData(prev => ({ ...prev, mrp: e.target.value }))}
+                  placeholder="0.00"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="variant-salePrice">Sale Price</Label>
+                <Input
+                  id="variant-salePrice"
+                  type="number"
+                  step="0.01"
+                  value={variantFormData.salePrice}
+                  onChange={(e) => setVariantFormData(prev => ({ ...prev, salePrice: e.target.value }))}
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="variant-quantity">Stock Quantity</Label>
+              <Input
+                id="variant-quantity"
+                type="number"
+                value={variantFormData.quantity}
+                onChange={(e) => setVariantFormData(prev => ({ ...prev, quantity: e.target.value }))}
+                placeholder="0"
+              />
+            </div>
+
+            <div className="flex gap-4 justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsVariantEditModalOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit">
+                {editingVariant ? 'Update Variant' : 'Add Variant'}
+              </Button>
             </div>
           </form>
         </DialogContent>
@@ -1502,23 +2139,48 @@ export default function InventoryPage() {
                     </div>
                   </>
                 )}
-                <Separator />
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Model Type</span>
-                  <span className="font-medium">
-                    {selectedProduct.modelType 
-                      ? selectedProduct.modelType.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())
-                      : '—'}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Pack Type</span>
-                  <span className="font-medium">
-                    {selectedProduct.packType 
-                      ? selectedProduct.packType.charAt(0) + selectedProduct.packType.slice(1).toLowerCase()
-                      : '—'}
-                  </span>
-                </div>
+                {/* Show attributes - always show Size if it exists, others only if they have values */}
+                {(selectedProduct.modelType || selectedProduct.size || selectedProduct.weight || selectedProduct.packType) && (
+                  <>
+                    <Separator />
+                    {selectedProduct.modelType && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Model Type</span>
+                        <span className="font-medium">
+                          {selectedProduct.modelType.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Size</span>
+                      <span className="font-medium">{selectedProduct.size || '—'}</span>
+                    </div>
+                    {selectedProduct.weight && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Weight</span>
+                        <span className="font-medium">{selectedProduct.weight}</span>
+                      </div>
+                    )}
+                    {selectedProduct.packType && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Pack Type</span>
+                        <span className="font-medium">
+                          {selectedProduct.packType.charAt(0) + selectedProduct.packType.slice(1).toLowerCase()}
+                        </span>
+                      </div>
+                    )}
+                  </>
+                )}
+                {/* Show Size even if no other attributes */}
+                {!(selectedProduct.modelType || selectedProduct.size || selectedProduct.weight || selectedProduct.packType) && (
+                  <>
+                    <Separator />
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Size</span>
+                      <span className="font-medium">{selectedProduct.size || '—'}</span>
+                    </div>
+                  </>
+                )}
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Shelf</span>
                   <span className="font-medium">
@@ -1616,14 +2278,14 @@ export default function InventoryPage() {
                                 const storeName = stores.length > 0 ? stores[0].name : 'STORE';
                                 const code = storeName.substring(0, 3).toUpperCase();
                                 return code === 'BRA' ? 'SP' : (code || 'SP');
-                              })()} Rs.:
+                              })()}:
                             </span>
                             <span className="font-bold text-sm">
                               ₹{Number(selectedProduct.salePrice || selectedProduct.price || selectedProduct.mrp || 0).toFixed(2)}
                             </span>
                           </div>
                           <div className="flex items-baseline gap-2">
-                            <span className="font-semibold text-[8px]">MRP Rs.:</span>
+                            <span className="font-semibold text-[8px]">MRP:</span>
                             <span className="font-bold text-[10px]">
                               ₹{Number(selectedProduct.mrp || 0).toFixed(2)}
                             </span>
@@ -1738,8 +2400,8 @@ export default function InventoryPage() {
               </div>
               </div>
 
-              {/* Product Attributes Section */}
-              {selectedProduct.id && (
+              {/* Product Attributes Section - Commented out, using variants instead */}
+              {/* {selectedProduct.id && (
                 <div className="border-t pt-4">
                   <ProductAttributes
                     productId={selectedProduct.id}
@@ -1747,7 +2409,7 @@ export default function InventoryPage() {
                     readonly={false}
                   />
                 </div>
-              )}
+              )} */}
             </div>
           )}
         </DialogContent>
