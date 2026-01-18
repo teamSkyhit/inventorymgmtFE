@@ -13,6 +13,7 @@ import { Scan, Camera, Keyboard, Package, MapPin, DollarSign, Hash } from 'lucid
 import { mockProducts } from '@/lib/mock-data'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
+import { formatIndianCurrency } from '@/lib/utils'
 
 export default function ScanPage() {
   const [scanMode, setScanMode] = useState('manual') // 'camera' or 'manual'
@@ -203,7 +204,7 @@ export default function ScanPage() {
                       <DollarSign className="h-4 w-4" />
                       <span className="text-sm">Price</span>
                     </div>
-                    <p className="font-medium">₹{scannedProduct.price.toFixed(2)}</p>
+                    <p className="font-medium">₹{formatIndianCurrency(scannedProduct.price, true)}</p>
                   </div>
                 </div>
 

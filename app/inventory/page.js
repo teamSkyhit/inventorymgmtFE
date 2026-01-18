@@ -378,6 +378,8 @@ export default function InventoryPage() {
       const productCode = product.sku || product.barcode || '';
       const sellingPrice = product.salePrice || product.price || product.mrp || 0;
       const mrp = product.mrp || 0;
+      const formattedSellingPrice = formatIndianCurrency(Number(sellingPrice), true);
+      const formattedMrp = formatIndianCurrency(Number(mrp), true);
       // Use "SP" for Showroom price (first 3 letters of store name, or default to SP)
       const storeCode = storeName.substring(0, 3).toUpperCase() === 'BRA' ? 'SP' : (storeName.substring(0, 3).toUpperCase() || 'SP');
 
@@ -735,11 +737,11 @@ export default function InventoryPage() {
             <div class="pricing-section">
               <div class="price-row selling-price">
                 <span class="price-label">${escapedStoreCode}:</span>
-                <span class="price-value selling-price">₹${Number(sellingPrice).toFixed(2)}</span>
+                <span class="price-value selling-price">₹${formattedSellingPrice}</span>
               </div>
               <div class="price-row mrp-row">
                 <span class="price-label">MRP:</span>
-                <span class="price-value mrp">₹${Number(mrp).toFixed(2)}</span>
+                <span class="price-value mrp">₹${formattedMrp}</span>
                 <span class="tax-info">(Incl of All Taxes)</span>
               </div>
             </div>
@@ -1173,8 +1175,8 @@ export default function InventoryPage() {
                               const min = Math.min(...prices);
                               const max = Math.max(...prices);
                               return min === max 
-                                ? `₹${formatIndianCurrency(min)}` 
-                                : `₹${formatIndianCurrency(min)} - ₹${formatIndianCurrency(max)}`;
+                                ? `₹${formatIndianCurrency(min, true)}` 
+                                : `₹${formatIndianCurrency(min, true)} - ₹${formatIndianCurrency(max, true)}`;
                             })()
                           : null;
                         
@@ -1269,14 +1271,14 @@ export default function InventoryPage() {
                                 ) : salePrice ? (
                                   <div>
                                     <span className="line-through text-muted-foreground text-sm">
-                                      ₹{formatIndianCurrency(mrp)}
+                                      ₹{formatIndianCurrency(mrp, true)}
                                     </span>
                                     <span className="ml-2 text-destructive font-semibold">
-                                      ₹{formatIndianCurrency(salePrice)}
+                                      ₹{formatIndianCurrency(salePrice, true)}
                                     </span>
                                   </div>
                                 ) : (
-                                  `₹${formatIndianCurrency(displayPrice)}`
+                                  `₹${formatIndianCurrency(displayPrice, true)}`
                                 )}
                               </TableCell>
                               <TableCell className="font-mono">
@@ -1387,14 +1389,14 @@ export default function InventoryPage() {
                                     {variantSalePrice ? (
                                       <div>
                                         <span className="line-through text-muted-foreground text-sm">
-                                          ₹{formatIndianCurrency(variantMrp)}
+                                          ₹{formatIndianCurrency(variantMrp, true)}
                                         </span>
                                         <span className="ml-2 text-destructive font-semibold">
-                                          ₹{formatIndianCurrency(variantSalePrice)}
+                                          ₹{formatIndianCurrency(variantSalePrice, true)}
                                         </span>
                                       </div>
                                     ) : (
-                                      `₹${formatIndianCurrency(variantDisplayPrice)}`
+                                      `₹${formatIndianCurrency(variantDisplayPrice, true)}`
                                     )}
                                   </TableCell>
                                   <TableCell className="font-mono">
@@ -1856,7 +1858,7 @@ export default function InventoryPage() {
                           <TableCell>{variant.modelType || '—'}</TableCell>
                           <TableCell className="font-mono text-sm">{variant.barcode}</TableCell>
                           <TableCell>
-                            ₹{formatIndianCurrency(Number(variant.salePrice || variant.price || variant.mrp || 0))}
+                            ₹{formatIndianCurrency(Number(variant.salePrice || variant.price || variant.mrp || 0), true)}
                           </TableCell>
                           <TableCell>{variant.quantity || 0}</TableCell>
                           <TableCell>
@@ -2281,13 +2283,13 @@ export default function InventoryPage() {
                               })()}:
                             </span>
                             <span className="font-bold text-sm">
-                              ₹{Number(selectedProduct.salePrice || selectedProduct.price || selectedProduct.mrp || 0).toFixed(2)}
+                              ₹{formatIndianCurrency(Number(selectedProduct.salePrice || selectedProduct.price || selectedProduct.mrp || 0), true)}
                             </span>
                           </div>
                           <div className="flex items-baseline gap-2">
                             <span className="font-semibold text-[8px]">MRP:</span>
                             <span className="font-bold text-[10px]">
-                              ₹{Number(selectedProduct.mrp || 0).toFixed(2)}
+                              ₹{formatIndianCurrency(Number(selectedProduct.mrp || 0), true)}
                             </span>
                           </div>
                           <div className="text-[7px] text-gray-600 font-medium">(Incl of All Taxes)</div>
@@ -2369,21 +2371,21 @@ export default function InventoryPage() {
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">MRP</span>
                     <span className="font-medium">
-                      ₹{Number(selectedProduct.mrp || 0).toFixed(2)}
+                      ₹{formatIndianCurrency(Number(selectedProduct.mrp || 0), true)}
                     </span>
                   </div>
                   {selectedProduct.salePrice && (
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Sale Price</span>
                       <span className="font-medium text-destructive">
-                        ₹{Number(selectedProduct.salePrice).toFixed(2)}
+                        ₹{formatIndianCurrency(Number(selectedProduct.salePrice), true)}
                       </span>
                     </div>
                   )}
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Current Price</span>
                     <span className="font-medium">
-                      ₹{Number(selectedProduct.price || 0).toFixed(2)}
+                      ₹{formatIndianCurrency(Number(selectedProduct.price || 0), true)}
                     </span>
                   </div>
                   <div className="flex justify-between pt-2 border-t">

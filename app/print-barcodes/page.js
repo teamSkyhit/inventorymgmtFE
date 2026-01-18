@@ -30,7 +30,7 @@ import Loader from '@/components/ui/loader';
 import { useAuth } from '@/lib/auth-context';
 import { productsAPI, storesAPI } from '@/lib/api';
 import logger from '@/lib/logger';
-import { cleanShelfName } from '@/lib/utils';
+import { cleanShelfName, formatIndianCurrency } from '@/lib/utils';
 import JsBarcode from 'jsbarcode';
 
 export default function PrintBarcodesPage() {
@@ -240,6 +240,8 @@ export default function PrintBarcodesPage() {
         const productCode = product.sku || product.barcode || '';
         const sellingPrice = product.salePrice || product.price || product.mrp || 0;
         const mrp = product.mrp || 0;
+        const formattedSellingPrice = formatIndianCurrency(Number(sellingPrice), true);
+        const formattedMrp = formatIndianCurrency(Number(mrp), true);
 
         return `
           <div class="barcode-label">
@@ -254,11 +256,11 @@ export default function PrintBarcodesPage() {
             <div class="pricing-section">
               <div class="price-row selling-price">
                 <span class="price-label">${escapeHtml(storeCode)}:</span>
-                <span class="price-value selling-price">₹${Number(sellingPrice).toFixed(2)}</span>
+                <span class="price-value selling-price">₹${formattedSellingPrice}</span>
               </div>
               <div class="price-row mrp-row">
                 <span class="price-label">MRP:</span>
-                <span class="price-value mrp">₹${Number(mrp).toFixed(2)}</span>
+                <span class="price-value mrp">₹${formattedMrp}</span>
                 <span class="tax-info">(Incl of All Taxes)</span>
               </div>
             </div>
@@ -640,10 +642,10 @@ export default function PrintBarcodesPage() {
                             {product.sku || '-'}
                           </TableCell>
                           <TableCell>
-                            ₹{Number(product.price || product.salePrice || 0).toFixed(2)}
+                            ₹{formatIndianCurrency(Number(product.price || product.salePrice || 0), true)}
                           </TableCell>
                           <TableCell>
-                            ₹{Number(product.mrp || 0).toFixed(2)}
+                            ₹{formatIndianCurrency(Number(product.mrp || 0), true)}
                           </TableCell>
                         </TableRow>
                       ))}

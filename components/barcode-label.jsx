@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useEffect } from 'react';
+import { formatIndianCurrency } from '@/lib/utils';
 
 /**
  * Barcode Label Component for Printing
@@ -251,12 +252,12 @@ export default function BarcodeLabel({ product, store, productName }) {
           </div>
           <div className="pricing-info">
             <div className="price-row">
-              <span className="price-label">{storeName.substring(0, 3).toUpperCase()}:</span>
-              <span className="price-value">₹{Number(sellingPrice).toFixed(2)}</span>
+              <span className="price-label">SP:</span>
+              <span className="price-value">₹{formatIndianCurrency(Number(sellingPrice), true)}</span>
             </div>
             <div className="price-row mrp-row">
               <span className="price-label">MRP:</span>
-              <span className="price-value">₹{Number(mrp).toFixed(2)}</span>
+              <span className="price-value">₹{formatIndianCurrency(Number(mrp), true)}</span>
               <span className="tax-info">(Incl of All Taxes)</span>
             </div>
           </div>
