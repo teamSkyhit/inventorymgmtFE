@@ -736,7 +736,7 @@ export default function InventoryPage() {
             <!-- Pricing Section (Below SKU) -->
             <div class="pricing-section">
               <div class="price-row selling-price">
-                <span class="price-label">${escapedStoreCode}:</span>
+                <span class="price-label">SP:</span>
                 <span class="price-value selling-price">₹${formattedSellingPrice}</span>
               </div>
               <div class="price-row mrp-row">
