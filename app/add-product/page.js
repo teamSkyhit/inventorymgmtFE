@@ -342,6 +342,8 @@ export default function AddProductPage() {
     // Prepare all variant payloads - only include variants with valid barcodes
     const productPayloads = variants
       .map((variant) => {
+        // Find any pending temp inputs for this variant (e.g. size typed but chip not added yet)
+        const tempInput = variantTempInputs.find((v) => v.id === variant.id);
         // Debug: Log variant data before processing
         logger.info(`Processing variant ${variant.id}:`, {
           size: variant.size,
@@ -368,6 +370,7 @@ export default function AddProductPage() {
           ? (variant.packType.length > 0 ? variant.packType[0] : null)
           : (variant.packType && typeof variant.packType === 'string' && variant.packType.trim() !== '' ? variant.packType.trim() : null);
         // Extract size - handle array, string, or null/undefined
+        // Also fall back to any pending temp input value if user typed but didn't press Enter
         let sizeStr = null;
         if (Array.isArray(variant.size)) {
           if (variant.size.length > 0) {
@@ -376,6 +379,10 @@ export default function AddProductPage() {
           }
         } else if (variant.size && typeof variant.size === 'string') {
           sizeStr = variant.size.trim() !== '' ? variant.size.trim() : null;
+        }
+        // If no committed size chip but there is a temp size value, use that
+        if (!sizeStr && tempInput?.size && String(tempInput.size).trim() !== '') {
+          sizeStr = String(tempInput.size).trim();
         }
         
         // Debug size extraction

@@ -30,7 +30,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Search, MoreVertical, Edit, Trash2, Plus, Printer, ChevronDown, ChevronRight } from 'lucide-react';
+import { Search, MoreVertical, Edit, Trash2, Plus, Printer, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { toast } from 'sonner';
@@ -80,7 +80,17 @@ export default function InventoryPage() {
     mrp: '',
     salePrice: '',
     quantity: '',
+    image: '',
   });
+
+  // Generate a new barcode for variant add/edit modal
+  const generateVariantBarcode = () => {
+    const randomBarcode = Math.floor(100000000000 + Math.random() * 900000000000).toString(); // 12-digit numeric
+    setVariantFormData((prev) => ({
+      ...prev,
+      barcode: randomBarcode,
+    }));
+  };
   const [formData, setFormData] = useState({
     name: '',
     categoryId: '',
@@ -1830,7 +1840,7 @@ export default function InventoryPage() {
                     size="sm"
                     onClick={() => {
                       // Open add variant dialog
-                      setVariantFormData({ size: '', modelType: '', barcode: '', mrp: '', salePrice: '', quantity: '' });
+                      setVariantFormData({ size: '', modelType: '', barcode: '', mrp: '', salePrice: '', quantity: '', image: '' });
                       setEditingVariant(null);
                       setIsVariantEditModalOpen(true);
                     }}
@@ -1876,6 +1886,7 @@ export default function InventoryPage() {
                                     mrp: variant.mrp?.toString() || '',
                                     salePrice: variant.salePrice?.toString() || '',
                                     quantity: variant.quantity?.toString() || '',
+                                    image: variant.image || '',
                                   });
                                   setIsVariantEditModalOpen(true);
                                 }}
@@ -1958,6 +1969,7 @@ export default function InventoryPage() {
                 mrp: variantFormData.mrp ? Number(variantFormData.mrp) : null,
                 salePrice: variantFormData.salePrice ? Number(variantFormData.salePrice) : null,
                 quantity: variantFormData.quantity ? Number(variantFormData.quantity) : 0,
+                image: variantFormData.image || null,
               };
 
               let response;
@@ -2018,13 +2030,22 @@ export default function InventoryPage() {
 
             <div className="space-y-2">
               <Label htmlFor="variant-barcode">Barcode *</Label>
-              <Input
-                id="variant-barcode"
-                value={variantFormData.barcode}
-                onChange={(e) => setVariantFormData(prev => ({ ...prev, barcode: e.target.value }))}
-                placeholder="Unique barcode for this variant"
-                required
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="variant-barcode"
+                  value={variantFormData.barcode}
+                  onChange={(e) => setVariantFormData(prev => ({ ...prev, barcode: e.target.value }))}
+                  placeholder="Unique barcode for this variant"
+                  required
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={generateVariantBarcode}
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -2061,6 +2082,16 @@ export default function InventoryPage() {
                 value={variantFormData.quantity}
                 onChange={(e) => setVariantFormData(prev => ({ ...prev, quantity: e.target.value }))}
                 placeholder="0"
+              />
+            </div>
+
+            {/* Variant Image Upload */}
+            <div className="space-y-2">
+              <Label>Variant Image (Optional)</Label>
+              <ImageUpload
+                value={variantFormData.image}
+                onChange={(value) => setVariantFormData(prev => ({ ...prev, image: value }))}
+                label="Upload variant image"
               />
             </div>
 
