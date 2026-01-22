@@ -29,20 +29,26 @@ const PaginationItem = React.forwardRef(({ className, ...props }, ref) => (
 ))
 PaginationItem.displayName = "PaginationItem"
 
-const PaginationLink = ({
+const PaginationLink = React.forwardRef(({
   className,
   isActive,
   size = "icon",
+  onClick,
+  disabled,
   ...props
-}) => (
-  <a
+}, ref) => (
+  <button
+    ref={ref}
+    type="button"
     aria-current={isActive ? "page" : undefined}
+    disabled={disabled}
+    onClick={onClick}
     className={cn(buttonVariants({
       variant: isActive ? "outline" : "ghost",
       size,
-    }), className)}
+    }), disabled && "pointer-events-none opacity-50", className)}
     {...props} />
-)
+))
 PaginationLink.displayName = "PaginationLink"
 
 const PaginationPrevious = ({

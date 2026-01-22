@@ -363,12 +363,34 @@ export default function AddProductPage() {
 
         // For variants, use first value from arrays (single value per variant)
         // Convert empty arrays to null, arrays with values to first value, or keep string/null as is
-        const modelTypeStr = Array.isArray(variant.modelType)
-          ? (variant.modelType.length > 0 ? variant.modelType[0] : null)
-          : (variant.modelType && typeof variant.modelType === 'string' && variant.modelType.trim() !== '' ? variant.modelType.trim() : null);
-        const packTypeStr = Array.isArray(variant.packType)
-          ? (variant.packType.length > 0 ? variant.packType[0] : null)
-          : (variant.packType && typeof variant.packType === 'string' && variant.packType.trim() !== '' ? variant.packType.trim() : null);
+        // Also check temp inputs if no committed value
+        let modelTypeStr = null;
+        if (Array.isArray(variant.modelType)) {
+          if (variant.modelType.length > 0) {
+            const firstModelType = variant.modelType[0];
+            modelTypeStr = firstModelType && String(firstModelType).trim() !== '' ? String(firstModelType).trim() : null;
+          }
+        } else if (variant.modelType && typeof variant.modelType === 'string') {
+          modelTypeStr = variant.modelType.trim() !== '' ? variant.modelType.trim() : null;
+        }
+        // If no committed modelType chip but there is a temp modelType value, use that
+        if (!modelTypeStr && tempInput?.modelType && String(tempInput.modelType).trim() !== '') {
+          modelTypeStr = String(tempInput.modelType).trim();
+        }
+        
+        let packTypeStr = null;
+        if (Array.isArray(variant.packType)) {
+          if (variant.packType.length > 0) {
+            const firstPackType = variant.packType[0];
+            packTypeStr = firstPackType && String(firstPackType).trim() !== '' ? String(firstPackType).trim() : null;
+          }
+        } else if (variant.packType && typeof variant.packType === 'string') {
+          packTypeStr = variant.packType.trim() !== '' ? variant.packType.trim() : null;
+        }
+        // If no committed packType chip but there is a temp packType value, use that
+        if (!packTypeStr && tempInput?.packType && String(tempInput.packType).trim() !== '') {
+          packTypeStr = String(tempInput.packType).trim();
+        }
         // Extract size - handle array, string, or null/undefined
         // Also fall back to any pending temp input value if user typed but didn't press Enter
         let sizeStr = null;
@@ -394,9 +416,21 @@ export default function AddProductPage() {
             isArray: Array.isArray(variant.size)
           });
         }
-        const weightStr = Array.isArray(variant.weight)
-          ? (variant.weight.length > 0 ? String(variant.weight[0]).trim() : null)
-          : (variant.weight && typeof variant.weight === 'string' && variant.weight.trim() !== '' ? variant.weight.trim() : null);
+        // Extract weight - handle array, string, or null/undefined
+        // Also fall back to any pending temp input value if user typed but didn't press Enter
+        let weightStr = null;
+        if (Array.isArray(variant.weight)) {
+          if (variant.weight.length > 0) {
+            const firstWeight = variant.weight[0];
+            weightStr = firstWeight && String(firstWeight).trim() !== '' ? String(firstWeight).trim() : null;
+          }
+        } else if (variant.weight && typeof variant.weight === 'string') {
+          weightStr = variant.weight.trim() !== '' ? variant.weight.trim() : null;
+        }
+        // If no committed weight chip but there is a temp weight value, use that
+        if (!weightStr && tempInput?.weight && String(tempInput.weight).trim() !== '') {
+          weightStr = String(tempInput.weight).trim();
+        }
         
         // Debug: Log extracted values
         logger.info(`Variant ${variant.id} extracted values:`, {
@@ -471,32 +505,13 @@ export default function AddProductPage() {
     };
 
     // Prepare variants array with variant-specific fields only
+    // Use the already-extracted values from productPayloads (no need to re-extract)
     const variantsArray = productPayloads.map((payload) => {
-      // Ensure size is properly extracted (handle both array and string)
-      const sizeValue = Array.isArray(payload.size)
-        ? (payload.size.length > 0 ? payload.size[0] : null)
-        : (payload.size && typeof payload.size === 'string' && payload.size.trim() !== '' ? payload.size.trim() : null);
-      
-      // Ensure modelType is properly extracted
-      const modelTypeValue = Array.isArray(payload.modelType)
-        ? (payload.modelType.length > 0 ? payload.modelType[0] : null)
-        : (payload.modelType && typeof payload.modelType === 'string' && payload.modelType.trim() !== '' ? payload.modelType.trim() : null);
-      
-      // Ensure packType is properly extracted
-      const packTypeValue = Array.isArray(payload.packType)
-        ? (payload.packType.length > 0 ? payload.packType[0] : null)
-        : (payload.packType && typeof payload.packType === 'string' && payload.packType.trim() !== '' ? payload.packType.trim() : null);
-      
-      // Ensure weight is properly extracted
-      const weightValue = Array.isArray(payload.weight)
-        ? (payload.weight.length > 0 ? payload.weight[0] : null)
-        : (payload.weight && typeof payload.weight === 'string' && payload.weight.trim() !== '' ? payload.weight.trim() : null);
-      
       return {
-        size: sizeValue,
-        modelType: modelTypeValue,
-        packType: packTypeValue,
-        weight: weightValue,
+        size: payload.size || null,
+        modelType: payload.modelType || null,
+        packType: payload.packType || null,
+        weight: payload.weight || null,
         barcode: payload.barcode,
         mrp: payload.mrp || null,
         salePrice: payload.salePrice || null,
@@ -1505,7 +1520,7 @@ export default function AddProductPage() {
                           weight: '',
                         };
 
-                        // Helper function to get variant summary
+                        // Helper function to get variant summary and name
                         const getVariantSummary = () => {
                           const parts = [];
                           if (variant.barcode) parts.push(`Barcode: ${variant.barcode}`);
@@ -1516,6 +1531,42 @@ export default function AddProductPage() {
                           if (variant.mrp) parts.push(`MRP: ₹${variant.mrp}`);
                           if (variant.salePrice) parts.push(`Sale: ₹${variant.salePrice}`);
                           return parts.length > 0 ? parts.join(' • ') : 'Click to add details';
+                        };
+
+                        // Helper function to generate variant name with size and weight
+                        const getVariantName = () => {
+                          const nameParts = [formData.name];
+                          
+                          // Get size value (check array, string, or temp input)
+                          let sizeValue = null;
+                          if (Array.isArray(variant.size) && variant.size.length > 0) {
+                            sizeValue = variant.size[0];
+                          } else if (variant.size && typeof variant.size === 'string' && variant.size.trim() !== '') {
+                            sizeValue = variant.size.trim();
+                          } else if (variantTempInput?.size && String(variantTempInput.size).trim() !== '') {
+                            sizeValue = String(variantTempInput.size).trim();
+                          }
+                          
+                          // Get weight value (check array, string, or temp input)
+                          let weightValue = null;
+                          if (Array.isArray(variant.weight) && variant.weight.length > 0) {
+                            weightValue = variant.weight[0];
+                          } else if (variant.weight && typeof variant.weight === 'string' && variant.weight.trim() !== '') {
+                            weightValue = variant.weight.trim();
+                          } else if (variantTempInput?.weight && String(variantTempInput.weight).trim() !== '') {
+                            weightValue = String(variantTempInput.weight).trim();
+                          }
+                          
+                          // Add size and/or weight to name
+                          if (sizeValue && weightValue) {
+                            nameParts.push(`${sizeValue} - ${weightValue}`);
+                          } else if (sizeValue) {
+                            nameParts.push(sizeValue);
+                          } else if (weightValue) {
+                            nameParts.push(weightValue);
+                          }
+                          
+                          return nameParts.join(' ');
                         };
 
                         return (
@@ -1537,7 +1588,9 @@ export default function AddProductPage() {
                                       variant="ghost"
                                       className="flex-1 justify-between p-0 h-auto font-semibold hover:bg-transparent"
                                     >
-                                      <span className="text-base">Variant {variantIndex + 1}</span>
+                                      <span className="text-base">
+                                        {getVariantName() || `Variant ${variantIndex + 1}`}
+                                      </span>
                                       {variant.isExpanded ? (
                                         <ChevronUp className="h-4 w-4" />
                                       ) : (

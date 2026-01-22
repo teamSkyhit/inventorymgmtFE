@@ -61,7 +61,32 @@ export default function BarcodeLabel({ product, store, productName }) {
   const storeLocation = store?.city || '';
   const storeInfo = storeLocation || '';
 
-  const displayProductName = productName || product.name || 'PRODUCT';
+  // Build product name with size/weight for variants
+  let displayProductName = productName || product.name || 'PRODUCT';
+  
+  // If it's a variant (has parentProductId or size/weight), append size or weight to name
+  if (product.parentProductId || product.size || product.weight) {
+    const nameParts = [displayProductName];
+    
+    // Add size if available
+    if (product.size) {
+      nameParts.push(product.size);
+    }
+    
+    // Add weight if available (and size is not present, or both if both are present)
+    if (product.weight) {
+      if (product.size) {
+        // If both size and weight, format: "Name - Size - Weight"
+        nameParts.push(product.weight);
+      } else {
+        // If only weight, format: "Name - Weight"
+        nameParts.push(product.weight);
+      }
+    }
+    
+    displayProductName = nameParts.join(' - ');
+  }
+  
   const productCode = product.sku || product.barcode || '';
   const sellingPrice = product.salePrice || product.price || product.mrp || 0;
   const mrp = product.mrp || 0;

@@ -233,7 +233,25 @@ export default function PrintBarcodesPage() {
 
       // Generate labels HTML in 2-column layout
       const labelsHtml = barcodeSvgs.map(({ product, barcodeSvg }) => {
-        const productName = product.name || 'PRODUCT';
+        // Build product name with size/weight for variants
+        let productName = product.name || 'PRODUCT';
+        
+        // If it's a variant (has parentProductId or size/weight), append size or weight to name
+        if (product.parentProductId || product.size || product.weight) {
+          const nameParts = [productName];
+          
+          // Add size if available
+          if (product.size) {
+            nameParts.push(product.size);
+          }
+          
+          // Add weight if available
+          if (product.weight) {
+            nameParts.push(product.weight);
+          }
+          
+          productName = nameParts.join(' - ');
+        }
         const shelfName = product.shelf?.name || product.shelfId || '';
         const cleanedShelfName = cleanShelfName(shelfName);
         const productNameWithShelf = cleanedShelfName ? `${productName} - ${cleanedShelfName}` : productName;

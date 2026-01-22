@@ -47,6 +47,15 @@ import ImageUpload from '@/components/image-upload';
 import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
 import Loader from '@/components/ui/loader';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+  PaginationEllipsis,
+} from '@/components/ui/pagination';
 import { useAuth } from '@/lib/auth-context';
 import { useCommon } from '@/lib/common-context';
 import { productsAPI, storesAPI, storeInventoryAPI, shelvesAPI } from '@/lib/api';
@@ -57,6 +66,7 @@ import { cleanShelfName, formatIndianCurrency } from '@/lib/utils';
 
 export default function InventoryPage() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [shelfFilter, setShelfFilter] = useState('all');
   const [stockFilter, setStockFilter] = useState('all');
@@ -115,6 +125,14 @@ export default function InventoryPage() {
   const [editShelves, setEditShelves] = useState([]);
   const [loadingEditShelves, setLoadingEditShelves] = useState(false);
   const [expandedProducts, setExpandedProducts] = useState(new Set()); // Track expanded parent products
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [paginationMeta, setPaginationMeta] = useState({
+    total: 0,
+    page: 1,
+    limit: 10,
+    totalPages: 0,
+  });
   const { user } = useAuth();
   const { categories } = useCommon();
 
@@ -143,11 +161,38 @@ export default function InventoryPage() {
     if (!user?.token) return;
     try {
       setLoading(true);
-      // Fetch grouped products (parent products with variants)
-      const response = await productsAPI.getAll(user.token, { grouped: true, limit: 1000 });
+      
+      // Build API parameters for server-side pagination and filtering
+      const params = {
+        grouped: true,
+        page: currentPage,
+        limit: itemsPerPage,
+      };
+      
+      // Add search parameter if debounced search term exists
+      if (debouncedSearchTerm) {
+        params.search = debouncedSearchTerm;
+      }
+      
+      // Add category filter if not 'all'
+      if (categoryFilter !== 'all') {
+        params.category = categoryFilter;
+      }
+      
+      const response = await productsAPI.getAll(user.token, params);
       if (response.success) {
-        // productAttributes removed - using variants instead
+        // Set products from response
         setProducts(response.data?.products || response.data || []);
+        
+        // Update pagination metadata from API response
+        if (response.meta) {
+          setPaginationMeta({
+            total: response.meta.total || 0,
+            page: response.meta.page || currentPage,
+            limit: response.meta.limit || itemsPerPage,
+            totalPages: response.meta.totalPages || 0,
+          });
+        }
       } else {
         toast.error(response.message || 'Failed to load products');
       }
@@ -197,9 +242,46 @@ export default function InventoryPage() {
   useEffect(() => {
     if (user?.token) {
       fetchStores();
-      fetchProducts();
     }
   }, [user?.token]);
+
+  // Helper function to detect if input is a barcode (numeric, 8+ digits)
+  // Defined outside useEffect so it can be used in event handlers
+  const isBarcode = (value) => {
+    if (!value || value.trim() === '') return false;
+    // Remove any whitespace or newline characters (barcode scanners often add these)
+    const cleaned = value.trim().replace(/\s+/g, '');
+    // Check if it's all numeric and at least 8 digits (common barcode lengths: EAN-8, UPC-A, EAN-13)
+    return /^\d{8,}$/.test(cleaned);
+  };
+
+  // Debounce search term - wait 500ms after user stops typing
+  // BUT immediately search if it's a barcode (for scanner input)
+  useEffect(() => {
+    // If it's a barcode, search immediately without debouncing
+    if (isBarcode(searchTerm)) {
+      setDebouncedSearchTerm(searchTerm.trim());
+      return;
+    }
+
+    // For regular text input, use debouncing
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 500); // 500ms delay
+
+    // Cleanup function to clear the timer if user types again
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [searchTerm]);
+
+  // Fetch products when pagination or filters change (server-side)
+  useEffect(() => {
+    if (user?.token) {
+      fetchProducts();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.token, currentPage, itemsPerPage, debouncedSearchTerm, categoryFilter]);
 
   useEffect(() => {
     if (user?.token && storeFilter !== 'all') {
@@ -239,29 +321,9 @@ export default function InventoryPage() {
     });
   }, [products, storeInventory, storeFilter]);
 
+  // Client-side filtering for shelf and stock (not supported by API)
   const filteredProducts = useMemo(() => {
     return productsWithStoreInventory.filter((product) => {
-      // Check if product matches search (including variants)
-      const productMatchesSearch =
-        product.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        product.barcode?.includes(searchTerm) ||
-        product.sku?.toLowerCase().includes(searchTerm.toLowerCase());
-      
-      // Check if any variant matches search
-      const variantMatchesSearch = product.variants?.some(variant =>
-        variant.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        variant.barcode?.includes(searchTerm) ||
-        variant.sku?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        variant.size?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-      
-      const matchesSearch = productMatchesSearch || variantMatchesSearch || !searchTerm;
-      
-      const matchesCategory =
-        categoryFilter === 'all' ||
-        product.categoryId === categoryFilter ||
-        product.category?.name === categoryFilter;
-      
       const matchesShelf =
         shelfFilter === 'all' ||
         product.shelfId === shelfFilter ||
@@ -278,9 +340,24 @@ export default function InventoryPage() {
         (stockFilter === 'low' && totalStock < 10) ||
         (stockFilter === 'out' && totalStock === 0);
 
-      return matchesSearch && matchesCategory && matchesShelf && matchesStock;
+      return matchesShelf && matchesStock;
     });
-  }, [productsWithStoreInventory, searchTerm, categoryFilter, shelfFilter, stockFilter]);
+  }, [productsWithStoreInventory, shelfFilter, stockFilter]);
+
+  // Use server-side pagination metadata
+  const totalPages = paginationMeta.totalPages || 1;
+  const startIndex = (paginationMeta.page - 1) * paginationMeta.limit;
+  const endIndex = Math.min(startIndex + paginationMeta.limit, paginationMeta.total);
+
+  // Reset to page 1 when filters change (that trigger API calls)
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearchTerm, categoryFilter]);
+
+  // Reset to page 1 when items per page changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [itemsPerPage]);
 
   const handleDelete = async (id, productName = '', variantCount = 0) => {
     if (!user?.token) return;
@@ -300,7 +377,13 @@ export default function InventoryPage() {
         toast.success(variantCount > 0 
           ? `Product and ${variantCount} variant(s) deleted successfully`
           : 'Product deleted successfully');
-        fetchProducts();
+        
+        // If current page might be empty after deletion, go to previous page
+        if (filteredProducts.length === 1 && currentPage > 1) {
+          setCurrentPage(prev => prev - 1);
+        } else {
+          fetchProducts();
+        }
       } else {
         toast.error(response.message || 'Failed to delete product');
       }
@@ -331,7 +414,13 @@ export default function InventoryPage() {
         toast.success(isLastVariant
           ? 'Variant and parent product deleted successfully'
           : 'Variant deleted successfully');
-        fetchProducts();
+        
+        // If current page might be empty after deletion, go to previous page
+        if (filteredProducts.length === 1 && currentPage > 1) {
+          setCurrentPage(prev => prev - 1);
+        } else {
+          fetchProducts();
+        }
       } else {
         toast.error(response.message || 'Failed to delete variant');
       }
@@ -381,7 +470,26 @@ export default function InventoryPage() {
       const storeLocation = store?.city || '';
       const storeInfo = storeLocation || '';
 
-      const productName = product.name || 'PRODUCT';
+      // Build product name with size/weight for variants
+      let productName = product.name || 'PRODUCT';
+      
+      // If it's a variant (has parentProductId or size/weight), append size or weight to name
+      if (product.parentProductId || product.size || product.weight) {
+        const nameParts = [productName];
+        
+        // Add size if available
+        if (product.size) {
+          nameParts.push(product.size);
+        }
+        
+        // Add weight if available
+        if (product.weight) {
+          nameParts.push(product.weight);
+        }
+        
+        productName = nameParts.join(' - ');
+      }
+      
       const shelfName = product.shelf?.name || product.shelfId || '';
       const cleanedShelfName = cleanShelfName(shelfName);
       const productNameWithShelf = cleanedShelfName ? `${productName} - ${cleanedShelfName}` : productName;
@@ -1069,10 +1177,34 @@ export default function InventoryPage() {
                 <div className="relative">
                   <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search products..."
+                    placeholder="Search products or scan barcode..."
                     className="pl-9"
                     value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onChange={(e) => {
+                      let value = e.target.value;
+                      // Handle barcode scanner input (often includes newline/enter)
+                      // If input ends with newline and is a barcode, remove it and search immediately
+                      if (value.endsWith('\n') || value.endsWith('\r')) {
+                        value = value.trim();
+                        setSearchTerm(value);
+                        // If it's a barcode, trigger immediate search
+                        if (isBarcode(value)) {
+                          setDebouncedSearchTerm(value);
+                        }
+                      } else {
+                        setSearchTerm(value);
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      // Handle Enter key for barcode scanning
+                      if (e.key === 'Enter' && searchTerm.trim()) {
+                        const trimmed = searchTerm.trim();
+                        // If it's a barcode, search immediately
+                        if (isBarcode(trimmed)) {
+                          setDebouncedSearchTerm(trimmed);
+                        }
+                      }
+                    }}
                   />
                 </div>
                 <Select
@@ -1245,7 +1377,21 @@ export default function InventoryPage() {
                                 {hasVariants ? '—' : (product.sku || '—')}
                               </TableCell>
                               <TableCell className="font-medium">
-                                {product.name}
+                                {(() => {
+                                  // For single products (not variants), show size or weight if available
+                                  let displayName = product.name;
+                                  if (!hasVariants && (product.size || product.weight)) {
+                                    const nameParts = [product.name];
+                                    // Priority: size first, then weight
+                                    if (product.size) {
+                                      nameParts.push(product.size);
+                                    } else if (product.weight) {
+                                      nameParts.push(product.weight);
+                                    }
+                                    displayName = nameParts.join(' - ');
+                                  }
+                                  return displayName;
+                                })()}
                                 {hasVariants && (
                                   <span className="ml-2 text-xs text-muted-foreground">
                                     ({variantCount} variant{variantCount !== 1 ? 's' : ''})
@@ -1335,9 +1481,13 @@ export default function InventoryPage() {
                               const variantModelTypeLabel = variant.modelType ? 
                                 variant.modelType.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) : '—';
                               const variantShelfName = variant.shelf?.name || variant.shelfId || '—';
-                              const displayName = variant.size 
-                                ? `${product.name} - ${variant.size}`
-                                : product.name;
+                              // Build variant display name: priority is size, then weight
+                              let displayName = product.name;
+                              if (variant.size) {
+                                displayName = `${product.name} - ${variant.size}`;
+                              } else if (variant.weight) {
+                                displayName = `${product.name} - ${variant.weight}`;
+                              }
                               
                               return (
                                 <TableRow
@@ -1471,19 +1621,144 @@ export default function InventoryPage() {
               </div>
 
               <div className="flex items-center justify-between mt-4">
-                <div className="text-sm text-muted-foreground">
-                  Showing {filteredProducts.length} of {products.length} products
-                  {storeFilter !== 'all' && (
-                    <span className="ml-2">
-                      (Store: {stores.find((s) => s.id === storeFilter)?.name || 'Unknown'})
-                    </span>
-                  )}
+                <div className="flex items-center gap-4">
+                  <div className="text-sm text-muted-foreground">
+                    Showing {startIndex + 1} to {endIndex} of {paginationMeta.total} products
+                    {storeFilter !== 'all' && (
+                      <span className="ml-2">
+                        (Store: {stores.find((s) => s.id === storeFilter)?.name || 'Unknown'})
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="itemsPerPage" className="text-sm text-muted-foreground">
+                      Rows per page:
+                    </Label>
+                    <Select value={itemsPerPage.toString()} onValueChange={(value) => setItemsPerPage(Number(value))}>
+                      <SelectTrigger className="w-20 h-8">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5">5</SelectItem>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="20">20</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <div className="text-xs text-muted-foreground">
                   Tip: Click a product row for details and barcode label.
                   {storeFilter !== 'all' && ' Quantities shown are store-specific.'}
                 </div>
               </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="mt-4">
+                  <Pagination>
+                    <PaginationContent>
+                      <PaginationItem>
+                        <PaginationPrevious
+                          onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                          disabled={currentPage === 1}
+                        />
+                      </PaginationItem>
+                      
+                      {/* Page Numbers */}
+                      {(() => {
+                        const pages = [];
+                        const showEllipsis = totalPages > 7;
+                        
+                        if (!showEllipsis) {
+                          // Show all pages if 7 or fewer
+                          for (let i = 1; i <= totalPages; i++) {
+                            pages.push(
+                              <PaginationItem key={i}>
+                                <PaginationLink
+                                  onClick={() => setCurrentPage(i)}
+                                  isActive={currentPage === i}
+                                >
+                                  {i}
+                                </PaginationLink>
+                              </PaginationItem>
+                            );
+                          }
+                        } else {
+                          // Always show first page
+                          pages.push(
+                            <PaginationItem key={1}>
+                              <PaginationLink
+                                onClick={() => setCurrentPage(1)}
+                                isActive={currentPage === 1}
+                              >
+                                1
+                              </PaginationLink>
+                            </PaginationItem>
+                          );
+                          
+                          // Show ellipsis if current page is far from start
+                          if (currentPage > 3) {
+                            pages.push(
+                              <PaginationItem key="ellipsis-start">
+                                <PaginationEllipsis />
+                              </PaginationItem>
+                            );
+                          }
+                          
+                          // Show pages around current
+                          const start = Math.max(2, currentPage - 1);
+                          const end = Math.min(totalPages - 1, currentPage + 1);
+                          
+                          for (let i = start; i <= end; i++) {
+                            if (i !== 1 && i !== totalPages) {
+                              pages.push(
+                                <PaginationItem key={i}>
+                                  <PaginationLink
+                                    onClick={() => setCurrentPage(i)}
+                                    isActive={currentPage === i}
+                                  >
+                                    {i}
+                                  </PaginationLink>
+                                </PaginationItem>
+                              );
+                            }
+                          }
+                          
+                          // Show ellipsis if current page is far from end
+                          if (currentPage < totalPages - 2) {
+                            pages.push(
+                              <PaginationItem key="ellipsis-end">
+                                <PaginationEllipsis />
+                              </PaginationItem>
+                            );
+                          }
+                          
+                          // Always show last page
+                          pages.push(
+                            <PaginationItem key={totalPages}>
+                              <PaginationLink
+                                onClick={() => setCurrentPage(totalPages)}
+                                isActive={currentPage === totalPages}
+                              >
+                                {totalPages}
+                              </PaginationLink>
+                            </PaginationItem>
+                          );
+                        }
+                        
+                        return pages;
+                      })()}
+                      
+                      <PaginationItem>
+                        <PaginationNext
+                          onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                          disabled={currentPage === totalPages}
+                        />
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -1830,7 +2105,7 @@ export default function InventoryPage() {
             )}
 
             {/* Variants Section - Always show for parent products */}
-            {editingProduct && !editingProduct.parentProductId && (
+            {editingProduct && !editingProduct.parentProductId && editingProduct?.variants?.length > 0 && (
               <div className="space-y-4 border-t pt-4">
                 <div className="flex items-center justify-between">
                   <Label className="text-base font-semibold">Product Variants</Label>
@@ -2272,11 +2547,31 @@ export default function InventoryPage() {
                         {/* Product Name */}
                         <div className="font-bold text-[9px] uppercase leading-tight mb-1">
                           {(() => {
+                            // Build product name with size/weight for variants
+                            let productName = selectedProduct.name || 'PRODUCT';
+                            
+                            // If it's a variant (has parentProductId or size/weight), append size or weight to name
+                            if (selectedProduct.parentProductId || selectedProduct.size || selectedProduct.weight) {
+                              const nameParts = [productName];
+                              
+                              // Add size if available
+                              if (selectedProduct.size) {
+                                nameParts.push(selectedProduct.size);
+                              }
+                              
+                              // Add weight if available
+                              if (selectedProduct.weight) {
+                                nameParts.push(selectedProduct.weight);
+                              }
+                              
+                              productName = nameParts.join(' - ');
+                            }
+                            
                             const shelfName = selectedProduct.shelf?.name || selectedProduct.shelfId || '';
                             const cleanedShelfName = cleanShelfName(shelfName);
                             return cleanedShelfName 
-                              ? `${selectedProduct.name} - ${cleanedShelfName}`
-                              : selectedProduct.name;
+                              ? `${productName} - ${cleanedShelfName}`
+                              : productName;
                           })()}
                         </div>
 
@@ -2469,7 +2764,26 @@ export default function InventoryPage() {
                       product={previewProduct} 
                       store={stores.length > 0 ? stores[0] : null}
                       productName={(() => {
-                        const productName = previewProduct.name || 'PRODUCT';
+                        // Build product name with size/weight for variants
+                        let productName = previewProduct.name || 'PRODUCT';
+                        
+                        // If it's a variant (has parentProductId or size/weight), append size or weight to name
+                        if (previewProduct.parentProductId || previewProduct.size || previewProduct.weight) {
+                          const nameParts = [productName];
+                          
+                          // Add size if available
+                          if (previewProduct.size) {
+                            nameParts.push(previewProduct.size);
+                          }
+                          
+                          // Add weight if available
+                          if (previewProduct.weight) {
+                            nameParts.push(previewProduct.weight);
+                          }
+                          
+                          productName = nameParts.join(' - ');
+                        }
+                        
                         const shelfName = previewProduct.shelf?.name || previewProduct.shelfId || '';
                         const cleanedShelfName = cleanShelfName(shelfName);
                         return cleanedShelfName ? `${productName} - ${cleanedShelfName}` : productName;
