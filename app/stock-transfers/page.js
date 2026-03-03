@@ -192,12 +192,26 @@ export default function StockTransfersPage() {
       return;
     }
 
+    const qty = parseInt(formData.quantity);
+    if (!qty || qty < 1) {
+      toast.error('Quantity must be at least 1');
+      return;
+    }
+
+    if (formData.productId && formData.fromStoreId) {
+      const availableStock = getAvailableStock(formData.fromStoreId);
+      if (qty > availableStock) {
+        toast.error(`Cannot transfer ${qty} units. Only ${availableStock} available in source store.`);
+        return;
+      }
+    }
+
     try {
       const payload = {
         fromStoreId: formData.fromStoreId,
         toStoreId: formData.toStoreId,
         productId: formData.productId,
-        quantity: parseInt(formData.quantity),
+        quantity: qty,
         notes: formData.notes?.trim() || undefined,
       };
 
@@ -457,7 +471,7 @@ export default function StockTransfersPage() {
           </Card>
 
           {/* Request Transfer Modal */}
-          <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+          <Dialog open={isModalOpen} onOpenChange={(open) => !open && handleCloseModal()}>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Request Stock Transfer</DialogTitle>

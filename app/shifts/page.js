@@ -91,6 +91,12 @@ export default function ShiftsPage() {
 
   const fetchShifts = async () => {
     if (!user?.token) return;
+
+    if (filters.startDate && filters.endDate && filters.startDate > filters.endDate) {
+      toast.error('Start date cannot be after end date');
+      return;
+    }
+
     try {
       setLoading(true);
       const params = {};
@@ -151,6 +157,18 @@ export default function ShiftsPage() {
   const handleOpenShift = async (e) => {
     e.preventDefault();
     if (!user?.token) return;
+
+    const existingOpen = shifts.find(
+      (s) =>
+        (s.counter?.id === formData.counterId || s.counterId === formData.counterId) &&
+        s.status === 'OPEN'
+    );
+    if (existingOpen) {
+      toast.error(
+        `Counter already has an open shift (${existingOpen.shiftNumber}). Close it first.`
+      );
+      return;
+    }
 
     try {
       const payload = {

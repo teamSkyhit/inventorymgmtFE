@@ -109,6 +109,7 @@ export default function AddProductPage() {
     size: '',
     weight: '',
   });
+  const [barcodeStatus, setBarcodeStatus] = useState(null); // null | 'checking' | 'duplicate' | 'available'
 
   useEffect(() => {
     if (formData.categoryId && categories?.length) {
@@ -156,6 +157,22 @@ export default function AddProductPage() {
       delete newErrors.barcode;
       return newErrors;
     });
+    setBarcodeStatus(null);
+  };
+
+  const checkBarcodeUniqueness = async (barcode) => {
+    if (!barcode || !user?.token) return;
+    setBarcodeStatus('checking');
+    try {
+      const response = await productsAPI.getAll(user.token, { search: barcode, limit: 5 });
+      const found = response.data?.products || response.data || [];
+      const isDuplicate = Array.isArray(found) && found.some(
+        (p) => p.barcode === barcode || p.variants?.some((v) => v.barcode === barcode)
+      );
+      setBarcodeStatus(isDuplicate ? 'duplicate' : 'available');
+    } catch {
+      setBarcodeStatus(null);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -683,10 +700,12 @@ export default function AddProductPage() {
   const handleChange = (field, value) => {
     const updatedFormData = { ...formData, [field]: value };
     setFormData(updatedFormData);
-    
+
     // Validate field in real-time with updated form data
     validateField(field, value, updatedFormData);
-    
+
+    if (field === 'barcode') setBarcodeStatus(null);
+
     if (field === 'categoryId') {
       setSubCategoryList(
         categories?.find((cat) => cat.id === value)?.subcategories || []
@@ -1056,8 +1075,11 @@ export default function AddProductPage() {
                         onChange={(e) =>
                           handleChange('barcode', e.target.value)
                         }
-                        onBlur={(e) => handleBlur('barcode', e.target.value)}
-                        className={errors.barcode ? 'border-destructive' : ''}
+                        onBlur={(e) => {
+                          handleBlur('barcode', e.target.value);
+                          checkBarcodeUniqueness(e.target.value);
+                        }}
+                        className={errors.barcode || barcodeStatus === 'duplicate' ? 'border-destructive' : barcodeStatus === 'available' ? 'border-green-500' : ''}
                         required
                         maxLength={50}
                       />
@@ -1071,6 +1093,15 @@ export default function AddProductPage() {
                     </div>
                     {errors.barcode && (
                       <p className="text-sm text-destructive">{errors.barcode}</p>
+                    )}
+                    {!errors.barcode && barcodeStatus === 'checking' && (
+                      <p className="text-xs text-muted-foreground">Checking barcode...</p>
+                    )}
+                    {!errors.barcode && barcodeStatus === 'duplicate' && (
+                      <p className="text-xs text-amber-600">⚠ This barcode already exists on another product</p>
+                    )}
+                    {!errors.barcode && barcodeStatus === 'available' && (
+                      <p className="text-xs text-green-600">✓ Barcode is available</p>
                     )}
                   </div>
 

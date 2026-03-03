@@ -85,6 +85,11 @@ export default function ReportsPage() {
   const fetchReport = async (reportType) => {
     if (!user?.token) return
 
+    if (startDate && endDate && startDate > endDate) {
+      toast.error('Start date cannot be after end date')
+      return
+    }
+
     setLoading(true)
     try {
       const params = {}
@@ -172,6 +177,7 @@ export default function ReportsPage() {
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
+                  className={startDate && endDate && startDate > endDate ? 'border-destructive' : ''}
                 />
               </div>
               <div className="space-y-2">
@@ -180,7 +186,11 @@ export default function ReportsPage() {
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
+                  className={startDate && endDate && startDate > endDate ? 'border-destructive' : ''}
                 />
+                {startDate && endDate && startDate > endDate && (
+                  <p className="text-xs text-destructive">End date must be after start date</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Store</Label>

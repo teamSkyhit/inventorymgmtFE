@@ -54,6 +54,12 @@ export default function ReturnsPage() {
 
   const fetchReturns = async () => {
     if (!user?.token) return
+
+    if (filterStartDate && filterEndDate && filterStartDate > filterEndDate) {
+      toast.error('Start date cannot be after end date')
+      return
+    }
+
     setLoading(true)
     try {
       const params = {}
@@ -373,6 +379,7 @@ export default function ReturnsPage() {
                   type="date"
                   value={filterStartDate}
                   onChange={(e) => setFilterStartDate(e.target.value)}
+                  className={filterStartDate && filterEndDate && filterStartDate > filterEndDate ? 'border-destructive' : ''}
                 />
               </div>
               <div className="space-y-2">
@@ -381,7 +388,11 @@ export default function ReturnsPage() {
                   type="date"
                   value={filterEndDate}
                   onChange={(e) => setFilterEndDate(e.target.value)}
+                  className={filterStartDate && filterEndDate && filterStartDate > filterEndDate ? 'border-destructive' : ''}
                 />
+                {filterStartDate && filterEndDate && filterStartDate > filterEndDate && (
+                  <p className="text-xs text-destructive">End date must be after start date</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Status</Label>
@@ -481,7 +492,19 @@ export default function ReturnsPage() {
         </Card>
 
         {/* Return Modal */}
-        <Dialog open={isReturnModalOpen} onOpenChange={setIsReturnModalOpen}>
+        <Dialog open={isReturnModalOpen} onOpenChange={(open) => {
+          if (!open) {
+            setReturnForm({
+              reason: '',
+              reasonDetails: '',
+              isExchange: false,
+              exchangeProductId: '',
+              exchangeQuantity: '',
+              notes: '',
+            })
+          }
+          setIsReturnModalOpen(open)
+        }}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Process Return/Exchange</DialogTitle>
