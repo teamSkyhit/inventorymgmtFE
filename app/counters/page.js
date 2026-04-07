@@ -43,7 +43,7 @@ export default function CountersPage() {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCounter, setEditingCounter] = useState(null);
-  const [formData, setFormData] = useState({ name: '', storeId: '' });
+  const [formData, setFormData] = useState({ name: '', storeId: '', counterType: 'BILLING' });
   const [storeFilter, setStoreFilter] = useState('all');
   const { user } = useAuth();
 
@@ -95,10 +95,10 @@ export default function CountersPage() {
   const handleOpenModal = (counter = null) => {
     if (counter) {
       setEditingCounter(counter);
-      setFormData({ name: counter.name || '', storeId: counter.storeId || '' });
+      setFormData({ name: counter.name || '', storeId: counter.storeId || '', counterType: counter.counterType || 'BILLING' });
     } else {
       setEditingCounter(null);
-      setFormData({ name: '', storeId: storeFilter !== 'all' ? storeFilter : '' });
+      setFormData({ name: '', storeId: storeFilter !== 'all' ? storeFilter : '', counterType: 'BILLING' });
     }
     setIsModalOpen(true);
   };
@@ -106,7 +106,7 @@ export default function CountersPage() {
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setEditingCounter(null);
-    setFormData({ name: '', storeId: '' });
+    setFormData({ name: '', storeId: '', counterType: 'BILLING' });
   };
 
   const handleSubmit = async (e) => {
@@ -114,7 +114,7 @@ export default function CountersPage() {
     if (!user?.token) return;
     if (!formData.storeId) { toast.error('Please select a store'); return; }
     try {
-      const payload = { name: formData.name, storeId: formData.storeId };
+      const payload = { name: formData.name, storeId: formData.storeId, counterType: formData.counterType };
       let response;
       if (editingCounter) {
         response = await countersAPI.update(editingCounter.id, payload, user.token);
@@ -276,6 +276,7 @@ export default function CountersPage() {
                     <TableRow>
                       <TableHead>Counter Name</TableHead>
                       <TableHead>Store</TableHead>
+                      <TableHead>Type</TableHead>
                       <TableHead>Sales Count</TableHead>
                       <TableHead>POS Users</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
@@ -289,6 +290,11 @@ export default function CountersPage() {
                           {counter.store?.name ||
                             stores.find((s) => s.id === counter.storeId)?.name ||
                             '-'}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={counter.counterType === 'FLOOR' ? 'secondary' : 'default'} className="text-xs">
+                            {counter.counterType || 'BILLING'}
+                          </Badge>
                         </TableCell>
                         <TableCell>{counter._count?.sales || 0}</TableCell>
                         <TableCell>
@@ -374,6 +380,24 @@ export default function CountersPage() {
                     required
                     placeholder="Main Billing Counter"
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="counterType">
+                    Counter Type <span className="text-destructive">*</span>
+                  </Label>
+                  <Select
+                    value={formData.counterType}
+                    onValueChange={(value) => setFormData((prev) => ({ ...prev, counterType: value }))}
+                    required
+                  >
+                    <SelectTrigger id="counterType">
+                      <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="BILLING">Billing — receives orders, processes payments</SelectItem>
+                      <SelectItem value="FLOOR">Floor — creates orders and hands off to billing</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="flex justify-end gap-2">
                   <Button type="button" variant="outline" onClick={handleCloseModal}>
