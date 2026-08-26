@@ -10,17 +10,12 @@ When making API calls from your Next.js frontend to an external server (like `ht
 
 - Updated `auth-context.js` to make external API calls with proper CORS headers
 - Added API utility functions in `lib/api.js` for better error handling
-- Created proxy endpoints as fallback for CORS issues
+- All network calls now hit the backend directly (no Next.js proxy routes)
 
 ### 2. Environment Configuration
 
 - Created `.env.local` with proper API base URL
 - Updated `next.config.js` with CORS headers and rewrites
-
-### 3. Proxy Fallback
-
-- Created `/app/api/proxy/auth/login/route.js` as a server-side proxy
-- This forwards requests to your external API and adds CORS headers
 
 ## External Server Requirements
 
@@ -70,14 +65,6 @@ if (req.method === 'OPTIONS') {
 2. Ensure it has the login endpoint: `POST /api/auth/login`
 3. Make sure it accepts JSON body with: `{ email, password, role }`
 4. Test the login from your frontend
-
-## Fallback Strategy
-
-If your external server doesn't support CORS:
-
-1. The frontend will first try direct API call
-2. If that fails, it will use the Next.js proxy endpoint
-3. The proxy makes the server-side call and adds CORS headers
 
 ## Environment Variables
 

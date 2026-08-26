@@ -24,6 +24,7 @@ import {
   ArrowLeftRight,
   Clock,
   Printer,
+  MessageSquare,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,6 +40,7 @@ const NAV_ITEMS = [
   { name: 'Add Product', href: '/add-product', icon: Plus },
   { name: 'Inventory', href: '/inventory', icon: Package },
   { name: 'Categories', href: '/categories', icon: FolderTree },
+  { name: 'Enquiries', href: '/enquiries', icon: MessageSquare },
   { name: 'Receipts', href: '/receipts', icon: CreditCard },
   // { name: 'Bulk Ops', href: '/bulk', icon: FileSpreadsheet },
   { name: 'Shelves', href: '/shelves', icon: Warehouse },

@@ -11,27 +11,20 @@ Successfully implemented the dashboard metrics API call using the external serve
 ```javascript
 export const dashboardAPI = {
   getMetrics: async (token) => {
-    try {
-      // Try direct external API call first
-      return await apiCall('/api/dashboard/metrics', {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-    } catch (error) {
-      // Fallback to proxy endpoint if direct call fails due to CORS
-      return await apiCall(
-        '/api/proxy/dashboard/metrics',
-        {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-        true
-      );
-    }
+    return apiCall('/api/dashboard/metrics', {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  },
+  getRecentUpdates: async (token) => {
+    return apiCall('/api/activity?page=1&limit=20', {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
   },
 };
 ```
@@ -43,13 +36,7 @@ export const dashboardAPI = {
 - Includes refresh functionality
 - Integrates with auth context for token management
 
-### 3. Proxy Endpoint (`app/api/proxy/dashboard/metrics/route.js`)
-
-- Server-side proxy for CORS fallback
-- Forwards Authorization header to external API
-- Handles errors gracefully
-
-### 4. Updated Dashboard Page (`app/dashboard/page.js`)
+### 3. Updated Dashboard Page (`app/dashboard/page.js`)
 
 - Uses the dashboard context hook
 - Displays all 6 metrics from the API response:
@@ -113,7 +100,6 @@ function MyComponent() {
 - ✅ External API integration with CORS handling
 - ✅ Automatic token-based authentication
 - ✅ Loading and error states
-- ✅ Fallback proxy for CORS issues
 - ✅ Manual refresh capability
 - ✅ Responsive grid layout for metrics
 - ✅ Clean, modern UI with icons
