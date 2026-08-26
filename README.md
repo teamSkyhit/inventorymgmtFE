@@ -1,4 +1,4 @@
-# PoojaStore Inventory Management System
+# PoojaStore Inventory Management System..
 
 ## Overview
 This README provides a comprehensive guide for creating a backend application similar to the UniTrack Inventory system, including database schema, API endpoints, and implementation details.
