@@ -59,6 +59,7 @@ import {
   Package,
   Globe,
 } from 'lucide-react';
+import ImageUpload from '@/components/image-upload';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { categoriesAPI } from '@/lib/api';
@@ -89,6 +90,7 @@ export default function CategoriesPage() {
     gstInclusive: true,
     showOnWebsite: false,
     minStockLevel: 5,
+    image: '',
   });
   const [subcategoryFormData, setSubcategoryFormData] = useState({
     name: '',
@@ -107,6 +109,7 @@ export default function CategoriesPage() {
       gstInclusive: true,
       showOnWebsite: false,
       minStockLevel: 5,
+      image: '',
     });
     setIsCategoryDialogOpen(true);
   };
@@ -121,6 +124,7 @@ export default function CategoriesPage() {
       gstInclusive: category.gstInclusive !== undefined ? category.gstInclusive : true,
       showOnWebsite: category.showOnWebsite ?? false,
       minStockLevel: category.minStockLevel !== undefined ? Number(category.minStockLevel) : 5,
+      image: category.image || '',
     });
     setIsCategoryDialogOpen(true);
   };
@@ -617,6 +621,12 @@ export default function CategoriesPage() {
                     </Label>
                   </div>
                 </div>
+                <ImageUpload
+                  value={categoryFormData.image}
+                  onChange={(url) => setCategoryFormData({ ...categoryFormData, image: url })}
+                  label="Category Image (Optional)"
+                  token={user?.token}
+                />
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <div className="flex items-center gap-2">
                     <Globe className="h-4 w-4 text-muted-foreground" />
