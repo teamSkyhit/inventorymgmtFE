@@ -96,6 +96,7 @@ export default function CategoriesPage() {
     name: '',
     description: '',
     categoryId: '',
+    image: '',
   });
 
   // Category handlers
@@ -205,6 +206,7 @@ export default function CategoriesPage() {
       name: '',
       description: '',
       categoryId: categoryId,
+      image: '',
     });
     setIsSubcategoryDialogOpen(true);
   };
@@ -216,6 +218,7 @@ export default function CategoriesPage() {
       name: subcategory.name,
       description: subcategory.description || '',
       categoryId: categoryId,
+      image: subcategory.image || '',
     });
     setIsSubcategoryDialogOpen(true);
   };
@@ -466,7 +469,7 @@ export default function CategoriesPage() {
 
           {/* Category Dialog */}
           <Dialog open={isCategoryDialogOpen} onOpenChange={setIsCategoryDialogOpen}>
-            <DialogContent>
+            <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>
                   {editingCategory ? 'Edit Category' : 'Add New Category'}
@@ -660,7 +663,7 @@ export default function CategoriesPage() {
             open={isSubcategoryDialogOpen}
             onOpenChange={setIsSubcategoryDialogOpen}
           >
-            <DialogContent>
+            <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>
                   {editingSubcategory
@@ -718,6 +721,12 @@ export default function CategoriesPage() {
                     <p className="text-sm text-destructive">{subcategoryErrors.description}</p>
                   )}
                 </div>
+                <ImageUpload
+                  value={subcategoryFormData.image}
+                  onChange={(url) => setSubcategoryFormData({ ...subcategoryFormData, image: url })}
+                  label="Subcategory Image (Optional)"
+                  token={user?.token}
+                />
               </div>
               <DialogFooter>
                 <Button
