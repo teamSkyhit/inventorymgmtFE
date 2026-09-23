@@ -25,6 +25,7 @@ import {
   Clock,
   Printer,
   MessageSquare,
+  IndianRupee,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,6 +38,7 @@ import {
 
 const NAV_ITEMS = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { name: 'Brass Rate', href: '/brass-rate', icon: IndianRupee },
   { name: 'Add Product', href: '/add-product', icon: Plus },
   { name: 'Inventory', href: '/inventory', icon: Package },
   { name: 'Categories', href: '/categories', icon: FolderTree },
