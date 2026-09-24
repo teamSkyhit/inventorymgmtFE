@@ -58,6 +58,7 @@ import {
   FolderTree,
   Package,
   Globe,
+  IndianRupee,
 } from 'lucide-react';
 import ImageUpload from '@/components/image-upload';
 import { Switch } from '@/components/ui/switch';
@@ -89,6 +90,7 @@ export default function CategoriesPage() {
     gstRate: 0,
     gstInclusive: true,
     showOnWebsite: false,
+    isBrassCategory: false,
     minStockLevel: 5,
     image: '',
   });
@@ -109,6 +111,7 @@ export default function CategoriesPage() {
       gstRate: 0,
       gstInclusive: true,
       showOnWebsite: false,
+      isBrassCategory: false,
       minStockLevel: 5,
       image: '',
     });
@@ -124,6 +127,7 @@ export default function CategoriesPage() {
       gstRate: category.gstRate !== undefined ? Number(category.gstRate) : 0,
       gstInclusive: category.gstInclusive !== undefined ? category.gstInclusive : true,
       showOnWebsite: category.showOnWebsite ?? false,
+      isBrassCategory: category.isBrassCategory ?? false,
       minStockLevel: category.minStockLevel !== undefined ? Number(category.minStockLevel) : 5,
       image: category.image || '',
     });
@@ -356,6 +360,12 @@ export default function CategoriesPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
+                        {category.isBrassCategory && (
+                          <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 border-amber-300">
+                            <IndianRupee className="h-3 w-3 mr-1" />
+                            Brass rate pricing
+                          </Badge>
+                        )}
                         <Badge variant="secondary">
                           <Package className="h-3 w-3 mr-1" />
                           {category._count?.products || 0} products
@@ -531,58 +541,7 @@ export default function CategoriesPage() {
                     <p className="text-sm text-destructive">{categoryErrors.description}</p>
                   )}
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="category-hsnCode">HSN Code *</Label>
-                  <Input
-                    id="category-hsnCode"
-                    value={categoryFormData.hsnCode}
-                    onChange={(e) => {
-                      setCategoryFormData({
-                        ...categoryFormData,
-                        hsnCode: e.target.value,
-                      });
-                      if (categoryErrors.hsnCode) {
-                        setCategoryErrors({ ...categoryErrors, hsnCode: null });
-                      }
-                    }}
-                    className={categoryErrors.hsnCode ? 'border-destructive' : ''}
-                    placeholder="e.g., 8517"
-                    required
-                  />
-                  {categoryErrors.hsnCode && (
-                    <p className="text-sm text-destructive">{categoryErrors.hsnCode}</p>
-                  )}
-                </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="category-gstRate">GST Rate (%) *</Label>
-                    <Select
-                      value={categoryFormData.gstRate.toString()}
-                      onValueChange={(value) => {
-                        setCategoryFormData({
-                          ...categoryFormData,
-                          gstRate: Number(value),
-                        });
-                        if (categoryErrors.gstRate) {
-                          setCategoryErrors({ ...categoryErrors, gstRate: null });
-                        }
-                      }}
-                    >
-                      <SelectTrigger className={categoryErrors.gstRate ? 'border-destructive' : ''}>
-                        <SelectValue placeholder="Select GST rate" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="0">0%</SelectItem>
-                        <SelectItem value="3">3%</SelectItem>
-                        <SelectItem value="5">5%</SelectItem>
-                        <SelectItem value="12">12%</SelectItem>
-                        <SelectItem value="18">18%</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {categoryErrors.gstRate && (
-                      <p className="text-sm text-destructive">{categoryErrors.gstRate}</p>
-                    )}
-                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="category-minStockLevel">Minimum Stock Level</Label>
                     <Input
@@ -607,22 +566,25 @@ export default function CategoriesPage() {
                     )}
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="category-gstInclusive"
-                      checked={categoryFormData.gstInclusive}
-                      onCheckedChange={(checked) => {
-                        setCategoryFormData({
-                          ...categoryFormData,
-                          gstInclusive: checked,
-                        });
-                      }}
-                    />
-                    <Label htmlFor="category-gstInclusive" className="font-normal cursor-pointer">
-                      GST Inclusive (price includes GST)
-                    </Label>
+                <div className="flex items-center justify-between rounded-lg border border-amber-300 bg-amber-50/50 p-3">
+                  <div className="flex items-start gap-2">
+                    <IndianRupee className="h-4 w-4 mt-0.5 text-amber-700" />
+                    <div>
+                      <Label htmlFor="category-isBrassCategory" className="font-medium cursor-pointer">
+                        Brass rate pricing
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Products in this category (and all its subcategories) are priced as weight × today&apos;s brass rate.
+                      </p>
+                    </div>
                   </div>
+                  <Switch
+                    id="category-isBrassCategory"
+                    checked={categoryFormData.isBrassCategory}
+                    onCheckedChange={(checked) =>
+                      setCategoryFormData({ ...categoryFormData, isBrassCategory: checked })
+                    }
+                  />
                 </div>
                 <ImageUpload
                   value={categoryFormData.image}
