@@ -18,7 +18,7 @@ export default function RoleBasedLayout({ children }) {
 
   const userRole = user?.role?.toLowerCase()
 
-  if (userRole === 'admin') {
+  if (userRole === 'admin' || userRole === 'super_admin') {
     return <AdminLayout>{children}</AdminLayout>
   }
 

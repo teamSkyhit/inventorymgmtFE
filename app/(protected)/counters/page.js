@@ -423,7 +423,7 @@ export default function CountersPage() {
                       <TableRow key={usr.id}>
                         <TableCell className="font-medium">{usr.name}</TableCell>
                         <TableCell>
-                          <Badge variant={usr.role === 'ADMIN' ? 'default' : 'secondary'} className="text-xs">
+                          <Badge variant={usr.role === 'USER' ? 'secondary' : 'default'} className="text-xs">
                             {usr.role}
                           </Badge>
                         </TableCell>

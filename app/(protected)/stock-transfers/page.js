@@ -255,7 +255,7 @@ export default function StockTransfersPage() {
     return <Badge className={colors}>{status.replace('_', ' ')}</Badge>;
   };
 
-  const canApprove = (transfer) => transfer.status === 'PENDING' && user?.role === 'ADMIN';
+  const canApprove = (transfer) => transfer.status === 'PENDING' && ['admin', 'super_admin'].includes(user?.role);
   const canShip = (transfer) =>
     (transfer.status === 'PENDING' || transfer.status === 'IN_TRANSIT') &&
     transfer.status !== 'RECEIVED' &&
