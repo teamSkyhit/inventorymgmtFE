@@ -6,7 +6,6 @@ import { useAuth } from '@/lib/auth-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Package } from 'lucide-react'
 import { toast } from 'sonner'
@@ -18,7 +17,6 @@ import logger from '@/lib/logger'
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [role, setRole] = useState('admin')
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState({})
   const { login, user, loading: authLoading } = useAuth()
@@ -28,7 +26,7 @@ export default function LoginPage() {
   useEffect(() => {
     if (!authLoading && user) {
       const userRole = user.role?.toLowerCase()
-      if (userRole === 'admin') {
+      if (userRole === 'admin' || userRole === 'super_admin') {
         router.push('/dashboard')
       } else {
         router.push('/inventory')
@@ -46,7 +44,6 @@ export default function LoginPage() {
       const validationResult = loginSchema.safeParse({
         email,
         password,
-        role,
       })
 
       if (!validationResult.success) {
@@ -59,16 +56,16 @@ export default function LoginPage() {
       }
 
       const validatedData = validationResult.data
-      logger.info('Login attempt:', { email: validatedData.email, role: validatedData.role })
+      logger.info('Login attempt:', { email: validatedData.email })
 
-      const result = await login(validatedData.email, validatedData.password, validatedData.role)
+      const result = await login(validatedData.email, validatedData.password)
       
       if (!result.success) {
         logger.warn('Login failed:', result.message)
         toast.error(result.message || 'Login failed')
         setLoading(false)
       } else {
-        logger.info('Login successful:', { email: validatedData.email, role: validatedData.role })
+        logger.info('Login successful:', { email: validatedData.email })
         toast.success('Login successful!')
         // Don't set loading to false here as redirect is happening
       }
@@ -151,19 +148,6 @@ export default function LoginPage() {
               {errors.password && (
                 <p className="text-sm text-destructive">{errors.password}</p>
               )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="role">Role</Label>
-              <Select value={role} onValueChange={setRole}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="user">General User</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
 
             <Button type="submit" className="w-full" disabled={loading}>
