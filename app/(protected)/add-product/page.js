@@ -32,14 +32,14 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { RefreshCw, X, Plus, Trash2, ChevronDown, ChevronUp, Globe } from 'lucide-react';
+import { RefreshCw, X, Plus, Trash2, ChevronDown, ChevronUp, Globe, IndianRupee } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { useCommon } from '@/lib/common-context';
 import { useAuth } from '@/lib/auth-context';
 import ImageUpload from '@/components/image-upload';
-import { productsAPI, shelvesAPI } from '@/lib/api';
+import { productsAPI, shelvesAPI, brassRateAPI } from '@/lib/api';
 import logger from '@/lib/logger';
 import { productSchema, formatZodError, getFieldErrors } from '@/lib/validations';
 
@@ -66,6 +66,7 @@ export default function AddProductPage() {
       packType: [],
       size: [],
       weight: [],
+      weightValue: '',
       quantity: '',
       minStockLevel: '',
       allowNegativeStock: true,
@@ -95,6 +96,7 @@ export default function AddProductPage() {
     packType: [],
     size: [],
     weight: [],
+    weightValue: '',
     quantity: '',
     minStockLevel: '',
     allowNegativeStock: true,
@@ -133,6 +135,68 @@ export default function AddProductPage() {
     },
     enabled: !!user?.token,
   });
+
+  const isBrassCategory = !!categories?.find((cat) => cat.id === formData.categoryId)?.isBrassCategory;
+
+  const { data: currentBrassRate } = useQuery({
+    queryKey: ['brassRate', 'current'],
+    queryFn: async () => {
+      const response = await brassRateAPI.getCurrent(user.token);
+      return response.success ? response.data : null;
+    },
+    enabled: !!user?.token && isBrassCategory,
+  });
+
+  const brassPricePreview = (weightValue) => {
+    const w = Number(weightValue);
+    const rate = Number(currentBrassRate?.rate);
+    if (!w || w <= 0 || !rate) return null;
+    return Math.round(w * rate * 100) / 100;
+  };
+
+  const renderBrassWeightField = ({ id, value, onChange, error }) => {
+    const preview = brassPricePreview(value);
+    return (
+      <div className="rounded-lg border border-amber-300 bg-amber-50/50 p-4 space-y-3">
+        <div className="flex items-center gap-2 text-sm font-medium text-amber-800">
+          <IndianRupee className="h-4 w-4" />
+          Brass rate pricing — price is calculated from weight
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+          <div className="space-y-2">
+            <Label htmlFor={id}>Weight (grams) <span className="text-destructive">*</span></Label>
+            <Input
+              id={id}
+              type="number"
+              step="0.001"
+              min="0"
+              placeholder="250"
+              value={value}
+              onChange={(e) => onChange(e.target.value)}
+              className={error ? 'border-destructive' : ''}
+            />
+            {error && <p className="text-sm text-destructive">{error}</p>}
+          </div>
+          <div className="text-sm">
+            {currentBrassRate ? (
+              <>
+                <div className="text-muted-foreground">
+                  Today&apos;s rate: ₹{Number(currentBrassRate.rate).toLocaleString('en-IN', { minimumFractionDigits: 2 })}/g
+                </div>
+                <div className="text-lg font-semibold">
+                  {preview != null
+                    ? `Price: ₹${preview.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+                    : 'Enter weight to see price'}
+                </div>
+              </>
+            ) : (
+              <div className="text-amber-800">No brass rate set yet — set one on the Brass Rate page.</div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const generateBarcode = () => {
     const barcode = Math.floor(
@@ -231,6 +295,13 @@ export default function AddProductPage() {
       return;
     }
 
+    const weightValue = Number(formData.weightValue);
+    if (isBrassCategory && !(weightValue > 0)) {
+      setErrors({ weightValue: 'Weight is required for brass products' });
+      toast.error('Weight (grams) is required for brass products');
+      return;
+    }
+
     const validatedData = validationResult.data;
     logger.info('Creating product:', { name: validatedData.name, barcode: validatedData.barcode });
 
@@ -245,6 +316,8 @@ export default function AddProductPage() {
       packType: validatedData.packType || null,
       size: validatedData.size || null,
       weight: validatedData.weight || null,
+      weightValue: weightValue > 0 ? weightValue : null,
+      weightUnit: 'g',
       quantity: validatedData.quantity || 0,
       minStockLevel: validatedData.minStockLevel || null,
       allowNegativeStock: validatedData.allowNegativeStock !== undefined ? validatedData.allowNegativeStock : true,
@@ -303,6 +376,11 @@ export default function AddProductPage() {
       // Debug: Log each variant's barcode
       logger.info(`Variant ${index + 1} (ID: ${variant.id}): barcode="${variant.barcode}", trimmed="${barcode}", isEmpty=${!barcode || barcode === ''}`);
       
+      if (isBrassCategory && !(Number(variant.weightValue) > 0)) {
+        variantErrors[`variant_${variant.id}_weightValue`] = 'Weight is required for brass products';
+        hasErrors = true;
+      }
+
       if (!barcode || barcode === '') {
         variantErrors[`variant_${variant.id}_barcode`] = 'Barcode is required';
         hasErrors = true;
@@ -456,6 +534,7 @@ export default function AddProductPage() {
           modelType: modelTypeStr, // Single model per variant
           packType: packTypeStr, // Single packType per variant
           weight: weightStr, // Single weight per variant
+          weightValue: Number(variant.weightValue) > 0 ? Number(variant.weightValue) : null,
           mrp: variant.mrp ? Number(variant.mrp) : null,
           salePrice: variant.salePrice ? Number(variant.salePrice) : null,
           quantity: variant.quantity ? Number(variant.quantity) : 0,
@@ -521,6 +600,8 @@ export default function AddProductPage() {
         modelType: payload.modelType || null,
         packType: payload.packType || null,
         weight: payload.weight || null,
+        weightValue: payload.weightValue,
+        weightUnit: 'g',
         barcode: payload.barcode,
         mrp: payload.mrp || null,
         salePrice: payload.salePrice || null,
@@ -779,6 +860,7 @@ export default function AddProductPage() {
         packType: [],
         size: [],
         weight: [],
+        weightValue: '',
         quantity: '',
         minStockLevel: '',
         allowNegativeStock: true,
@@ -1130,6 +1212,14 @@ export default function AddProductPage() {
                   </div>
                 </div>
 
+                {isBrassCategory ? (
+                  renderBrassWeightField({
+                    id: 'weightValue',
+                    value: formData.weightValue,
+                    onChange: (v) => handleChange('weightValue', v),
+                    error: errors.weightValue,
+                  })
+                ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="mrp">MRP (Maximum Retail Price) (Optional)</Label>
@@ -1175,6 +1265,7 @@ export default function AddProductPage() {
                     </p>
                   </div>
                 </div>
+                )}
 
                 {/* Attribute Fields - 2 Column Layout when 2+ fields enabled */}
                 {(enabledFields.modelType || enabledFields.packType || enabledFields.size || enabledFields.weight) && (
@@ -1771,6 +1862,14 @@ export default function AddProductPage() {
                               </div>
 
                               {/* Pricing */}
+                              {isBrassCategory ? (
+                                renderBrassWeightField({
+                                  id: `variant-${variant.id}-weightValue`,
+                                  value: variant.weightValue,
+                                  onChange: (v) => updateVariant(variant.id, 'weightValue', v),
+                                  error: errors[`variant_${variant.id}_weightValue`],
+                                })
+                              ) : (
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                   <Label htmlFor={`variant-${variant.id}-mrp`}>
@@ -1803,6 +1902,7 @@ export default function AddProductPage() {
                                   />
                                 </div>
                               </div>
+                              )}
 
                               {/* Attributes - Only show if enabled */}
                               {(enabledFields.modelType || enabledFields.packType || enabledFields.size || enabledFields.weight) && (

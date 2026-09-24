@@ -9,7 +9,7 @@ import { format } from 'date-fns'
 /**
  * Enhanced Receipt Component
  * Supports both Thermal (80mm) and A4 formats
- * Shows complete GST breakdown, payment methods, and store details
+ * Shows items with weight, payment methods, and store details
  */
 export default function ReceiptComponent({
   receiptData,
@@ -31,57 +31,22 @@ export default function ReceiptComponent({
       acc.totalQty += quantity
       acc.subtotal += Number(sale.subtotal || sale.unitPrice * quantity || 0)
       acc.discount += Number(sale.discountAmount ?? 0)
-      acc.taxable += Number(sale.taxableAmount || sale.subtotal || 0)
-      
-      // Get GST rate
-      const gstRate = Number(sale.gstRate ?? sale.product?.category?.gstRate ?? 0)
-      const gstInclusive = sale.product?.category?.gstInclusive ?? false
-      const withoutGst = sale.withoutGst ?? false
-      
-      // Calculate GST if not already calculated (for old sales)
-      let gstAmount = Number(sale.gstAmount ?? 0)
-      let cgstAmount = Number(sale.cgstAmount ?? 0)
-      let sgstAmount = Number(sale.sgstAmount ?? 0)
-      let igstAmount = Number(sale.igstAmount ?? 0)
-      
-      // If GST rate exists but amounts are missing, calculate them
-      if (gstRate > 0 && !withoutGst && gstAmount === 0 && cgstAmount === 0 && sgstAmount === 0) {
-        const taxable = Number(sale.taxableAmount || sale.subtotal || 0)
-        if (gstInclusive) {
-          // Price includes GST - extract GST
-          const rateMultiplier = 1 + gstRate / 100
-          const extractedTaxable = taxable / rateMultiplier
-          gstAmount = taxable - extractedTaxable
-        } else {
-          // Price excludes GST - add GST
-          gstAmount = (taxable * gstRate) / 100
-        }
-        // Round GST amount
-        gstAmount = Math.round(gstAmount * 100) / 100
-        // Split into CGST/SGST (assume intra-state for now)
-        cgstAmount = Math.round((gstAmount / 2) * 100) / 100
-        sgstAmount = Math.round((gstAmount - cgstAmount) * 100) / 100
-      }
-      
-      acc.gst += gstAmount
-      acc.cgst += cgstAmount
-      acc.sgst += sgstAmount
-      acc.igst += igstAmount
-      acc.final += Number(sale.finalAmount || sale.taxableAmount || 0)
-      
-      // Track if any sale has GST rate
-      if (gstRate > 0 && !withoutGst) {
-        acc.hasGstRate = true
-      }
+      acc.final += Number(sale.finalAmount || sale.subtotal || 0)
       return acc
     },
-    { totalQty: 0, subtotal: 0, discount: 0, taxable: 0, gst: 0, cgst: 0, sgst: 0, igst: 0, final: 0, hasGstRate: false }
+    { totalQty: 0, subtotal: 0, discount: 0, final: 0 }
   )
+
+  const formatWeight = (sale) => {
+    const product = sale.product || sale
+    const grams = sale.weightAtBilling ?? product?.weightValue
+    if (grams != null && Number(grams) > 0) return `${Number(grams)} g`
+    return product?.weight || '—'
+  }
 
   // Get store details
   const store = receiptData?.store || sales[0]?.store
   const storeName = store?.name || 'Store Name'
-  const storeGstin = store?.gstin || ''
   const storeAddress = store?.address || ''
   const storeCity = store?.city || ''
   const storeState = store?.state || ''
@@ -182,7 +147,6 @@ export default function ReceiptComponent({
             />
           )}
           <h2 className="text-lg font-bold">{storeName}</h2>
-          {storeGstin && <p className="text-xs">GSTIN: {storeGstin}</p>}
           {storeAddress && (
             <div className="text-xs mt-1">
               <p>{storeAddress}</p>
@@ -199,6 +163,8 @@ export default function ReceiptComponent({
         </div>
 
         <Separator className="my-3" />
+
+        <p className="text-center font-bold tracking-wide mb-2">Estimate/Bill</p>
 
         {/* Receipt Info */}
         <div className="flex justify-between text-xs mb-2">
@@ -228,16 +194,18 @@ export default function ReceiptComponent({
           <table className="w-full text-xs" style={{ tableLayout: 'fixed' }}>
             <colgroup>
               <col style={{ width: '5%' }} />
-              <col style={{ width: '40%' }} />
-              <col style={{ width: '15%' }} />
-              <col style={{ width: '20%' }} />
-              <col style={{ width: '20%' }} />
+              <col style={{ width: '33%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '16%' }} />
+              <col style={{ width: '18%' }} />
+              <col style={{ width: '18%' }} />
             </colgroup>
             <thead>
               <tr className="border-b">
                 <th className="text-center py-1">#</th>
                 <th className="text-left py-1">Item</th>
                 <th className="text-center py-1">Qty</th>
+                <th className="text-center py-1">Weight</th>
                 <th className="text-right py-1">Rate</th>
                 <th className="text-right py-1">Amount</th>
               </tr>
@@ -248,38 +216,18 @@ export default function ReceiptComponent({
                 const quantity = sale.quantitySold || sale.quantity || 1
                 const unitPrice = Number(sale.unitPrice || product?.price || 0)
                 const itemTotal = Number(sale.subtotal || unitPrice * quantity)
-                const gstRate = Number(sale.gstRate || product?.category?.gstRate || 0)
-                const hsnCode = product?.category?.hsnCode || ''
 
                 return (
-                  <>
-                    <tr key={`${sale.id || idx}-main`}>
-                      <td className="text-center py-2">{idx + 1}</td>
-                      <td className="text-left py-2 px-1">
-                        <span className="font-medium">{product?.name || 'Product'}</span>
-                      </td>
-                      <td className="text-center py-2 px-1">{quantity.toFixed(2)}</td>
-                      <td className="text-right py-2 px-1">₹{unitPrice.toFixed(2)}</td>
-                      <td className="text-right py-2 px-1 font-medium">₹{itemTotal.toFixed(2)}</td>
-                    </tr>
-                    {hsnCode && gstRate > 0 ? (
-                      <tr key={`${sale.id || idx}-gst`} className={idx < sales.length - 1 ? 'border-b' : ''}>
-                        <td className="py-0"></td>
-                        <td className="text-left py-1 px-1 text-[10px] text-muted-foreground" style={{ whiteSpace: 'nowrap' }}>
-                          <span style={{ marginRight: '20px' }}>HSN: {hsnCode}</span>
-                          <span style={{ marginRight: '20px' }}>CGST: {(gstRate / 2).toFixed(2)}%</span>
-                          <span>SGST: {(gstRate / 2).toFixed(2)}%</span>
-                        </td>
-                        <td className="py-0"></td>
-                        <td className="py-0"></td>
-                        <td className="py-0"></td>
-                      </tr>
-                    ) : (
-                      <tr key={`${sale.id || idx}-no-gst`} className={idx < sales.length - 1 ? 'border-b' : ''}>
-                        <td colSpan="5" className="py-0"></td>
-                      </tr>
-                    )}
-                  </>
+                  <tr key={sale.id || idx} className={idx < sales.length - 1 ? 'border-b' : ''}>
+                    <td className="text-center py-2">{idx + 1}</td>
+                    <td className="text-left py-2 px-1">
+                      <span className="font-medium">{product?.name || 'Product'}</span>
+                    </td>
+                    <td className="text-center py-2 px-1">{quantity}</td>
+                    <td className="text-center py-2 px-1">{formatWeight(sale)}</td>
+                    <td className="text-right py-2 px-1">₹{unitPrice.toFixed(2)}</td>
+                    <td className="text-right py-2 px-1 font-medium">₹{itemTotal.toFixed(2)}</td>
+                  </tr>
                 )
               })}
             </tbody>
@@ -292,29 +240,16 @@ export default function ReceiptComponent({
         <div className="space-y-1 text-xs mb-3">
           <div className="flex justify-between">
             <span>Total Quantity:</span>
-            <span>{totals.totalQty.toFixed(2)}</span>
+            <span>{totals.totalQty}</span>
           </div>
           <div className="flex justify-between">
             <span>Total Amount:</span>
             <span>₹{totals.subtotal.toFixed(2)}</span>
           </div>
-          {/* Show CGST/SGST if there's a GST rate and amounts are calculated */}
-          {totals.hasGstRate && totals.cgst > 0 && totals.sgst > 0 && (
-            <>
-              <div className="flex justify-between">
-                <span>CGST Amount Incl.:</span>
-                <span>₹{totals.cgst.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>SGST Amount Incl.:</span>
-                <span>₹{totals.sgst.toFixed(2)}</span>
-              </div>
-            </>
-          )}
-          {totals.igst > 0 && (
+          {totals.discount > 0 && (
             <div className="flex justify-between">
-              <span>IGST Amount Incl.:</span>
-              <span>₹{totals.igst.toFixed(2)}</span>
+              <span>Discount:</span>
+              <span>-₹{totals.discount.toFixed(2)}</span>
             </div>
           )}
 

@@ -11,6 +11,7 @@ export default function ProtectedRoute({ children, allowedRoles = [] }) {
   const normalizedAllowed = (allowedRoles || []).map((r) =>
     String(r).toLowerCase()
   );
+  if (normalizedAllowed.includes('admin')) normalizedAllowed.push('super_admin');
   const userRole = user?.role?.toLowerCase();
 
   useEffect(() => {
@@ -22,7 +23,7 @@ export default function ProtectedRoute({ children, allowedRoles = [] }) {
         !normalizedAllowed.includes(userRole)
       ) {
         // Redirect to appropriate page based on role
-        if (userRole === 'admin') {
+        if (userRole === 'admin' || userRole === 'super_admin') {
           router.push('/dashboard');
         } else {
           router.push('/inventory');

@@ -87,6 +87,7 @@ export default function InventoryPage() {
     barcode: '',
     mrp: '',
     salePrice: '',
+    weightValue: '',
     quantity: '',
     image: '',
   });
@@ -106,6 +107,7 @@ export default function InventoryPage() {
     barcode: '',
     mrp: '',
     salePrice: '',
+    weightValue: '',
     modelType: '',
     packType: '',
     size: '', // For variants
@@ -129,6 +131,7 @@ export default function InventoryPage() {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const { user } = useAuth();
   const { categories } = useCommon();
+  const editIsBrass = !!categories?.find((cat) => cat.id === formData.categoryId)?.isBrassCategory;
 
   const qc = useQueryClient();
   const { data: stores = [] } = useStores();
@@ -415,7 +418,7 @@ export default function InventoryPage() {
       const cleanedShelfName = cleanShelfName(shelfName);
       const productNameWithShelf = cleanedShelfName ? `${productName} - ${cleanedShelfName}` : productName;
       const productCode = product.sku || product.barcode || '';
-      const sellingPrice = product.salePrice || product.price || product.mrp || 0;
+      const sellingPrice = product.calculatedPrice ?? (product.salePrice || product.price || product.mrp || 0);
       const mrp = product.mrp || 0;
       const formattedSellingPrice = formatIndianCurrency(Number(sellingPrice), true);
       const formattedMrp = formatIndianCurrency(Number(mrp), true);
@@ -920,6 +923,7 @@ export default function InventoryPage() {
       barcode: productWithVariants.barcode || '',
       mrp: productWithVariants.mrp?.toString() || '',
       salePrice: productWithVariants.salePrice?.toString() || '',
+      weightValue: productWithVariants.weightValue?.toString() || '',
       modelType: productWithVariants.modelType || '',
       packType: productWithVariants.packType || '',
       size: productWithVariants.size || '', // For variants
@@ -957,6 +961,7 @@ export default function InventoryPage() {
           barcode: formData.barcode,
           mrp: formData.mrp ? Number(formData.mrp) : null,
           salePrice: formData.salePrice ? Number(formData.salePrice) : null,
+          weightValue: Number(formData.weightValue) > 0 ? Number(formData.weightValue) : null,
           quantity: formData.quantity ? Number(formData.quantity) : 0,
         };
 
@@ -1015,6 +1020,7 @@ export default function InventoryPage() {
         barcode: validatedData.barcode,
         mrp: validatedData.mrp,
         salePrice: validatedData.salePrice || null,
+        weightValue: Number(formData.weightValue) > 0 ? Number(formData.weightValue) : null,
         modelType: validatedData.modelType || null,
         packType: validatedData.packType || null,
         quantity: validatedData.quantity || 0,
@@ -1218,7 +1224,7 @@ export default function InventoryPage() {
                           product.shelf?.name || product.shelfId || '—';
                         const mrp = Number(product.mrp || 0);
                         const salePrice = product.salePrice ? Number(product.salePrice) : null;
-                        const displayPrice = salePrice || mrp;
+                        const displayPrice = product.calculatedPrice ?? (salePrice || mrp);
                         const imageSrc =
                           product.image || '/images/product-placeholder.png';
                         const modelTypeLabel = product.modelType ? 
@@ -1236,7 +1242,7 @@ export default function InventoryPage() {
                         const priceRange = hasVariants && product.variants.length > 0
                           ? (() => {
                               const prices = product.variants
-                                .map(v => Number(v.salePrice || v.price || v.mrp || 0))
+                                .map(v => Number(v.calculatedPrice ?? (v.salePrice || v.price || v.mrp || 0)))
                                 .filter(p => p > 0);
                               if (prices.length === 0) return null;
                               const min = Math.min(...prices);
@@ -1349,6 +1355,13 @@ export default function InventoryPage() {
                               <TableCell className="font-medium">
                                 {hasVariants ? (
                                   '—'
+                                ) : product.isBrassProduct ? (
+                                  <div>
+                                    {product.calculatedPrice != null ? `₹${formatIndianCurrency(product.calculatedPrice, true)}` : '—'}
+                                    <div className="text-xs text-amber-700">
+                                      {product.weightValue ? `${Number(product.weightValue)} g × brass rate` : 'Weight not set'}
+                                    </div>
+                                  </div>
                                 ) : salePrice ? (
                                   <div>
                                     <span className="line-through text-muted-foreground text-sm">
@@ -1401,7 +1414,7 @@ export default function InventoryPage() {
                             {hasVariants && isExpanded && product.variants.map((variant) => {
                               const variantMrp = Number(variant.mrp || 0);
                               const variantSalePrice = variant.salePrice ? Number(variant.salePrice) : null;
-                              const variantDisplayPrice = variantSalePrice || variantMrp;
+                              const variantDisplayPrice = variant.calculatedPrice ?? (variantSalePrice || variantMrp);
                               const variantImageSrc = variant.image || product.image || '/images/product-placeholder.png';
                               const variantModelTypeLabel = variant.modelType ? 
                                 variant.modelType.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) : '—';
@@ -1471,7 +1484,7 @@ export default function InventoryPage() {
                                     </Badge>
                                   </TableCell>
                                   <TableCell className="font-medium">
-                                    {variantSalePrice ? (
+                                    {!variant.isBrassProduct && variantSalePrice ? (
                                       <div>
                                         <span className="line-through text-muted-foreground text-sm">
                                           ₹{formatIndianCurrency(variantMrp, true)}
@@ -1862,6 +1875,24 @@ export default function InventoryPage() {
               {/* Column 2: Pricing & Stock - Hidden for parent products */}
               {!editingProduct?.variants?.length && (
                 <div className="space-y-4 min-w-0">
+                  {editIsBrass ? (
+                  <div className="space-y-2 rounded-lg border border-amber-300 bg-amber-50/50 p-3">
+                    <Label htmlFor="weightValue">Weight (grams) *</Label>
+                    <Input
+                      id="weightValue"
+                      type="number"
+                      step="0.001"
+                      min="0"
+                      value={formData.weightValue}
+                      onChange={(e) => handleFormChange('weightValue', e.target.value)}
+                      required
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Brass product — price is weight × today&apos;s brass rate.
+                    </p>
+                  </div>
+                  ) : (
+                  <>
                   <div className="space-y-2">
                     <Label htmlFor="mrp">MRP (Maximum Retail Price)</Label>
                     <Input
@@ -1895,6 +1926,8 @@ export default function InventoryPage() {
                       Leave empty if no special offer price
                     </p>
                   </div>
+                  </>
+                  )}
 
                   <div className="space-y-2">
                     <Label htmlFor="quantity">Quantity</Label>
@@ -2130,7 +2163,7 @@ export default function InventoryPage() {
                     size="sm"
                     onClick={() => {
                       // Open add variant dialog
-                      setVariantFormData({ size: '', modelType: '', barcode: '', mrp: '', salePrice: '', quantity: '', image: '' });
+                      setVariantFormData({ size: '', modelType: '', barcode: '', mrp: '', salePrice: '', weightValue: '', quantity: '', image: '' });
                       setEditingVariant(null);
                       setIsVariantEditModalOpen(true);
                     }}
@@ -2158,7 +2191,7 @@ export default function InventoryPage() {
                           <TableCell>{variant.modelType || '—'}</TableCell>
                           <TableCell className="font-mono text-sm">{variant.barcode}</TableCell>
                           <TableCell>
-                            ₹{formatIndianCurrency(Number(variant.salePrice || variant.price || variant.mrp || 0), true)}
+                            ₹{formatIndianCurrency(Number(variant.calculatedPrice ?? (variant.salePrice || variant.price || variant.mrp || 0)), true)}
                           </TableCell>
                           <TableCell>{variant.quantity || 0}</TableCell>
                           <TableCell>
@@ -2175,6 +2208,7 @@ export default function InventoryPage() {
                                     barcode: variant.barcode || '',
                                     mrp: variant.mrp?.toString() || '',
                                     salePrice: variant.salePrice?.toString() || '',
+                                    weightValue: variant.weightValue?.toString() || '',
                                     quantity: variant.quantity?.toString() || '',
                                     image: variant.image || '',
                                   });
@@ -2258,6 +2292,7 @@ export default function InventoryPage() {
                 barcode: variantFormData.barcode,
                 mrp: variantFormData.mrp ? Number(variantFormData.mrp) : null,
                 salePrice: variantFormData.salePrice ? Number(variantFormData.salePrice) : null,
+                weightValue: Number(variantFormData.weightValue) > 0 ? Number(variantFormData.weightValue) : null,
                 quantity: variantFormData.quantity ? Number(variantFormData.quantity) : 0,
                 image: variantFormData.image || null,
               };
@@ -2338,6 +2373,23 @@ export default function InventoryPage() {
               </div>
             </div>
 
+            {editIsBrass ? (
+            <div className="space-y-2 rounded-lg border border-amber-300 bg-amber-50/50 p-3">
+              <Label htmlFor="variant-weightValue">Weight (grams) *</Label>
+              <Input
+                id="variant-weightValue"
+                type="number"
+                step="0.001"
+                min="0"
+                value={variantFormData.weightValue}
+                onChange={(e) => setVariantFormData(prev => ({ ...prev, weightValue: e.target.value }))}
+                required
+              />
+              <p className="text-xs text-muted-foreground">
+                Brass product — price is weight × today&apos;s brass rate.
+              </p>
+            </div>
+            ) : (
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="variant-mrp">MRP</Label>
@@ -2363,6 +2415,7 @@ export default function InventoryPage() {
                 />
               </div>
             </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="variant-quantity">Stock Quantity</Label>
@@ -2441,23 +2494,23 @@ export default function InventoryPage() {
                     {selectedProduct.subcategory?.name || '—'}
                   </span>
                 </div>
-                {selectedProduct.category && (
+                {selectedProduct.category?.isBrassCategory && (
                   <>
                     <Separator />
                     <div className="space-y-2">
-                      <div className="text-xs font-semibold text-muted-foreground uppercase">Category GST Info</div>
+                      <div className="text-xs font-semibold text-muted-foreground uppercase">Brass Rate Pricing</div>
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">HSN Code</span>
-                        <span className="font-medium">{selectedProduct.category.hsnCode || '—'}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">GST Rate</span>
-                        <span className="font-medium">{selectedProduct.category.gstRate || 0}%</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">GST Inclusive</span>
+                        <span className="text-muted-foreground">Weight</span>
                         <span className="font-medium">
-                          {selectedProduct.category.gstInclusive ? 'Yes' : 'No'}
+                          {selectedProduct.weightValue ? `${Number(selectedProduct.weightValue)} g` : '—'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Current Price</span>
+                        <span className="font-medium">
+                          {selectedProduct.calculatedPrice != null
+                            ? `₹${formatIndianCurrency(selectedProduct.calculatedPrice, true)}`
+                            : '—'}
                         </span>
                       </div>
                     </div>
@@ -2625,7 +2678,7 @@ export default function InventoryPage() {
                               })()}:
                             </span>
                             <span className="font-bold text-sm">
-                              ₹{formatIndianCurrency(Number(selectedProduct.salePrice || selectedProduct.price || selectedProduct.mrp || 0), true)}
+                              ₹{formatIndianCurrency(Number(selectedProduct.calculatedPrice ?? (selectedProduct.salePrice || selectedProduct.price || selectedProduct.mrp || 0)), true)}
                             </span>
                           </div>
                           <div className="flex items-baseline gap-2">

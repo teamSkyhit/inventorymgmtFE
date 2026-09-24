@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '@/lib/auth-context'
@@ -33,7 +33,6 @@ export default function ReportsPage() {
   // Data
   const [counters, setCounters] = useState([])
   const [salesData, setSalesData] = useState(null)
-  const [gstData, setGstData] = useState(null)
   const [paymentData, setPaymentData] = useState(null)
   const [inventoryData, setInventoryData] = useState(null)
   const [cashReconData, setCashReconData] = useState(null)
@@ -88,10 +87,6 @@ export default function ReportsPage() {
         case 'sales':
           response = await reportsAPI.getSalesReport(user.token, params)
           if (response.success) setSalesData(response.data)
-          break
-        case 'gst':
-          response = await reportsAPI.getGstReport(user.token, params)
-          if (response.success) setGstData(response.data)
           break
         case 'payment':
           response = await reportsAPI.getPaymentModeReport(user.token, params)
@@ -228,9 +223,8 @@ export default function ReportsPage() {
 
         {/* Reports Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="sales">Sales</TabsTrigger>
-            <TabsTrigger value="gst">GST</TabsTrigger>
             <TabsTrigger value="payment">Payment Mode</TabsTrigger>
             <TabsTrigger value="inventory">Inventory</TabsTrigger>
             <TabsTrigger value="cash-recon">Cash Recon</TabsTrigger>
@@ -252,7 +246,7 @@ export default function ReportsPage() {
                 ) : salesData ? (
                   <div className="space-y-4">
                     {/* Summary */}
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       <div className="p-4 border rounded-lg">
                         <p className="text-sm text-muted-foreground">Total Receipts</p>
                         <p className="text-2xl font-bold">{salesData.summary?.totalReceipts || 0}</p>
@@ -264,10 +258,6 @@ export default function ReportsPage() {
                       <div className="p-4 border rounded-lg">
                         <p className="text-sm text-muted-foreground">Subtotal</p>
                         <p className="text-2xl font-bold">₹{salesData.summary?.totalSubtotal?.toFixed(2) || '0.00'}</p>
-                      </div>
-                      <div className="p-4 border rounded-lg">
-                        <p className="text-sm text-muted-foreground">Total GST</p>
-                        <p className="text-2xl font-bold">₹{salesData.summary?.totalGst?.toFixed(2) || '0.00'}</p>
                       </div>
                       <div className="p-4 border rounded-lg">
                         <p className="text-sm text-muted-foreground">Total Final</p>
@@ -286,7 +276,6 @@ export default function ReportsPage() {
                             <TableHead>Customer</TableHead>
                             <TableHead>Items</TableHead>
                             <TableHead>Subtotal</TableHead>
-                            <TableHead>GST</TableHead>
                             <TableHead>Total</TableHead>
                             <TableHead>Payments</TableHead>
                           </TableRow>
@@ -301,7 +290,6 @@ export default function ReportsPage() {
                                 <TableCell>{receipt.customerName || 'Walk-in'}</TableCell>
                                 <TableCell>{receipt.items?.length || 0}</TableCell>
                                 <TableCell>₹{receipt.totalSubtotal?.toFixed(2) || '0.00'}</TableCell>
-                                <TableCell>₹{receipt.totalGst?.toFixed(2) || '0.00'}</TableCell>
                                 <TableCell className="font-bold">₹{receipt.totalFinal?.toFixed(2) || '0.00'}</TableCell>
                                 <TableCell>
                                   <div className="flex flex-col gap-1">
@@ -316,91 +304,8 @@ export default function ReportsPage() {
                             ))
                           ) : (
                             <TableRow>
-                              <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                              <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                                 No sales data found
-                              </TableCell>
-                            </TableRow>
-                          )}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">No data available</div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* GST Report */}
-          <TabsContent value="gst" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  GST Report (GSTR-1 Format)
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {loading ? (
-                  <div className="text-center py-8">Loading...</div>
-                ) : gstData ? (
-                  <div className="space-y-4">
-                    {/* Summary */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="p-4 border rounded-lg">
-                        <p className="text-sm text-muted-foreground">Total Taxable Value</p>
-                        <p className="text-2xl font-bold">₹{gstData.totals?.totalTaxableValue?.toFixed(2) || '0.00'}</p>
-                      </div>
-                      <div className="p-4 border rounded-lg">
-                        <p className="text-sm text-muted-foreground">Total CGST</p>
-                        <p className="text-2xl font-bold">₹{gstData.totals?.totalCgst?.toFixed(2) || '0.00'}</p>
-                      </div>
-                      <div className="p-4 border rounded-lg">
-                        <p className="text-sm text-muted-foreground">Total SGST</p>
-                        <p className="text-2xl font-bold">₹{gstData.totals?.totalSgst?.toFixed(2) || '0.00'}</p>
-                      </div>
-                      <div className="p-4 border rounded-lg">
-                        <p className="text-sm text-muted-foreground">Total GST</p>
-                        <p className="text-2xl font-bold">₹{gstData.totals?.totalGst?.toFixed(2) || '0.00'}</p>
-                      </div>
-                    </div>
-
-                    {/* HSN-wise Table */}
-                    <div className="border rounded-lg overflow-hidden">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>HSN Code</TableHead>
-                            <TableHead>Description</TableHead>
-                            <TableHead>GST Rate</TableHead>
-                            <TableHead>Quantity</TableHead>
-                            <TableHead>Taxable Value</TableHead>
-                            <TableHead>CGST</TableHead>
-                            <TableHead>SGST</TableHead>
-                            <TableHead>IGST</TableHead>
-                            <TableHead>Total GST</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {gstData.hsnWiseData?.length > 0 ? (
-                            gstData.hsnWiseData.map((hsn, idx) => (
-                              <TableRow key={idx}>
-                                <TableCell className="font-medium">{hsn.hsnCode}</TableCell>
-                                <TableCell>{hsn.description}</TableCell>
-                                <TableCell>{hsn.gstRate}%</TableCell>
-                                <TableCell>{hsn.quantity}</TableCell>
-                                <TableCell>₹{hsn.taxableValue?.toFixed(2) || '0.00'}</TableCell>
-                                <TableCell>₹{hsn.cgst?.toFixed(2) || '0.00'}</TableCell>
-                                <TableCell>₹{hsn.sgst?.toFixed(2) || '0.00'}</TableCell>
-                                <TableCell>₹{hsn.igst?.toFixed(2) || '0.00'}</TableCell>
-                                <TableCell className="font-bold">₹{hsn.totalGst?.toFixed(2) || '0.00'}</TableCell>
-                              </TableRow>
-                            ))
-                          ) : (
-                            <TableRow>
-                              <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
-                                No GST data found
                               </TableCell>
                             </TableRow>
                           )}
@@ -696,7 +601,6 @@ export default function ReportsPage() {
                             <TableHead>Items</TableHead>
                             <TableHead>Subtotal</TableHead>
                             <TableHead>Discount</TableHead>
-                            <TableHead>GST</TableHead>
                             <TableHead>Total</TableHead>
                             <TableHead>Payments</TableHead>
                           </TableRow>
@@ -711,7 +615,6 @@ export default function ReportsPage() {
                                 <TableCell>{counter.itemCount}</TableCell>
                                 <TableCell>₹{counter.totalSubtotal?.toFixed(2) || '0.00'}</TableCell>
                                 <TableCell>₹{counter.totalDiscount?.toFixed(2) || '0.00'}</TableCell>
-                                <TableCell>₹{counter.totalGst?.toFixed(2) || '0.00'}</TableCell>
                                 <TableCell className="font-bold">₹{counter.totalFinal?.toFixed(2) || '0.00'}</TableCell>
                                 <TableCell>
                                   <div className="flex flex-col gap-1 text-xs">
@@ -726,7 +629,7 @@ export default function ReportsPage() {
                             ))
                           ) : (
                             <TableRow>
-                              <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                              <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                                 No counter data found
                               </TableCell>
                             </TableRow>

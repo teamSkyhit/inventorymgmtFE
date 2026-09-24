@@ -214,7 +214,6 @@ export default function StoresPage() {
                     <TableRow>
                       <TableHead>Name</TableHead>
                       <TableHead>Code</TableHead>
-                      <TableHead>GSTIN</TableHead>
                       <TableHead>City</TableHead>
                       <TableHead>Contact</TableHead>
                       <TableHead>Status</TableHead>
@@ -227,7 +226,6 @@ export default function StoresPage() {
                       <TableRow key={store.id}>
                         <TableCell className="font-medium">{store.name}</TableCell>
                         <TableCell>{store.code || '-'}</TableCell>
-                        <TableCell>{store.gstin || '-'}</TableCell>
                         <TableCell>{store.city || '-'}</TableCell>
                         <TableCell>{store.contact || '-'}</TableCell>
                         <TableCell>
@@ -302,17 +300,6 @@ export default function StoresPage() {
                       value={formData.code}
                       onChange={handleChange}
                       placeholder="STORE-001"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="gstin">GSTIN</Label>
-                    <Input
-                      id="gstin"
-                      name="gstin"
-                      value={formData.gstin}
-                      onChange={handleChange}
-                      placeholder="29ABCDE1234F1Z5"
-                      maxLength={15}
                     />
                   </div>
                   <div className="space-y-2">

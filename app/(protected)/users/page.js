@@ -259,7 +259,7 @@ export default function UsersPage() {
                       <TableCell className="font-medium">{usr.name}</TableCell>
                       <TableCell>{usr.email}</TableCell>
                       <TableCell>
-                        <Badge variant={usr.role === 'ADMIN' ? 'default' : 'secondary'}>{usr.role}</Badge>
+                        <Badge variant={usr.role === 'USER' ? 'secondary' : 'default'}>{usr.role === 'SUPER_ADMIN' ? 'SUPER ADMIN' : usr.role}</Badge>
                       </TableCell>
                       <TableCell>
                         <Badge variant={usr.status === 'ACTIVE' ? 'default' : 'secondary'}>{usr.status}</Badge>
@@ -369,6 +369,9 @@ export default function UsersPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
+                      {user?.role === 'super_admin' && (
+                        <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
+                      )}
                       <SelectItem value="ADMIN">Admin</SelectItem>
                       <SelectItem value="USER">User</SelectItem>
                     </SelectContent>

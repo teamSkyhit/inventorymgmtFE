@@ -268,13 +268,6 @@ export default function SettingsPage() {
                           />
                         </div>
                         <div className="flex items-center justify-between">
-                          <Label>Show GSTIN</Label>
-                          <Switch
-                            checked={!!storeSettings.receiptShowGstin}
-                            onCheckedChange={(v) => handleSettingChange('receiptShowGstin', v)}
-                          />
-                        </div>
-                        <div className="flex items-center justify-between">
                           <Label>Show Address</Label>
                           <Switch
                             checked={!!storeSettings.receiptShowAddress}
@@ -309,19 +302,10 @@ export default function SettingsPage() {
                   {/* Tax & Discount Settings */}
                   <Card>
                     <CardHeader>
-                      <CardTitle>Tax &amp; Discounts</CardTitle>
+                      <CardTitle>Discounts</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Default GST Rate (%)</Label>
-                          <Input
-                            type="number"
-                            value={storeSettings.defaultGstRate ?? ''}
-                            onChange={(e) => handleSettingChange('defaultGstRate', e.target.value)}
-                            placeholder="e.g. 18"
-                          />
-                        </div>
                         <div className="space-y-2">
                           <Label>Max Discount (%)</Label>
                           <Input
@@ -333,20 +317,6 @@ export default function SettingsPage() {
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-4">
-                        <div className="flex items-center justify-between">
-                          <Label>GST Inclusive Pricing</Label>
-                          <Switch
-                            checked={!!storeSettings.gstInclusive}
-                            onCheckedChange={(v) => handleSettingChange('gstInclusive', v)}
-                          />
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <Label>Show Tax Breakdown</Label>
-                          <Switch
-                            checked={!!storeSettings.showTaxBreakdown}
-                            onCheckedChange={(v) => handleSettingChange('showTaxBreakdown', v)}
-                          />
-                        </div>
                         <div className="flex items-center justify-between">
                           <Label>Allow Manual Discount</Label>
                           <Switch
