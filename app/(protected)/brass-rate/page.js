@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useState, useEffect } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/lib/auth-context'
 import { invalidateFor } from '@/lib/cacheSync'
 import { brassRateAPI } from '@/lib/api'
@@ -34,10 +34,7 @@ export default function BrassRatePage() {
   const { user } = useAuth()
   const qc = useQueryClient()
 
-  const [currentRate, setCurrentRate]   = useState(null)
-  const [history, setHistory]           = useState([])
-  const [pagination, setPagination]     = useState({ page: 1, pages: 1, total: 0 })
-  const [loading, setLoading]           = useState(true)
+  const [page, setPage]                 = useState(1)
   const [submitting, setSubmitting]     = useState(false)
 
   // New rate form
@@ -50,27 +47,34 @@ export default function BrassRatePage() {
   const [editingId, setEditingId]       = useState(null)
   const [editRate, setEditRate]         = useState('')
 
-  const loadData = useCallback(async (page = 1) => {
-    if (!user?.token) return
-    setLoading(true)
-    try {
-      const [currentRes, historyRes] = await Promise.all([
-        brassRateAPI.getCurrent(user.token),
-        brassRateAPI.getHistory(user.token, page, 15),
-      ])
-      if (currentRes.success) setCurrentRate(currentRes.data)
-      if (historyRes.success) {
-        setHistory(historyRes.data.rates || [])
-        setPagination(historyRes.data.pagination || { page: 1, pages: 1, total: 0 })
-      }
-    } catch {
-      toast.error('Failed to load brass rate data')
-    } finally {
-      setLoading(false)
-    }
-  }, [user?.token])
+  const currentQuery = useQuery({
+    queryKey: ['brassRate', 'current'],
+    queryFn: async () => {
+      const res = await brassRateAPI.getCurrent(user.token)
+      if (!res.success) throw new Error(res.message || 'Failed to load brass rate')
+      return res.data || null
+    },
+    enabled: !!user?.token,
+  })
+  const historyQuery = useQuery({
+    queryKey: ['brassRate', 'history', page],
+    queryFn: async () => {
+      const res = await brassRateAPI.getHistory(user.token, page, 15)
+      if (!res.success) throw new Error(res.message || 'Failed to load brass rate history')
+      return res.data
+    },
+    enabled: !!user?.token,
+    placeholderData: (prev) => prev,
+  })
+  const currentRate = currentQuery.data ?? null
+  const history = historyQuery.data?.rates || []
+  const pagination = historyQuery.data?.pagination || { page: 1, pages: 1, total: 0 }
+  const loading = currentQuery.isFetching || historyQuery.isFetching
+  const refresh = () => { currentQuery.refetch(); historyQuery.refetch() }
 
-  useEffect(() => { loadData() }, [loadData])
+  useEffect(() => {
+    if (currentQuery.isError || historyQuery.isError) toast.error('Failed to load brass rate data')
+  }, [currentQuery.isError, historyQuery.isError])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -89,7 +93,7 @@ export default function BrassRatePage() {
         setFormRate('')
         setFormNotes('')
         setFormDate(today)
-        loadData()
+        setPage(1)
         invalidateFor(qc, 'brassRate')
       } else {
         toast.error(res.message || 'Failed to update rate')
@@ -111,7 +115,6 @@ export default function BrassRatePage() {
       if (res.success) {
         toast.success('Rate corrected')
         setEditingId(null)
-        loadData(pagination.page)
         invalidateFor(qc, 'brassRate')
       } else {
         toast.error(res.message || 'Failed to update')
@@ -133,7 +136,7 @@ export default function BrassRatePage() {
           <h1 className="text-2xl font-bold">Brass Rate Management</h1>
           <p className="text-muted-foreground text-sm mt-1">Set and track daily brass rate per gram</p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => loadData(pagination.page)} disabled={loading}>
+        <Button variant="outline" size="sm" onClick={refresh} disabled={loading}>
           <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
           Refresh
         </Button>
@@ -356,7 +359,7 @@ export default function BrassRatePage() {
                   variant="outline"
                   size="sm"
                   disabled={pagination.page <= 1}
-                  onClick={() => loadData(pagination.page - 1)}
+                  onClick={() => setPage(pagination.page - 1)}
                 >
                   Previous
                 </Button>
@@ -364,7 +367,7 @@ export default function BrassRatePage() {
                   variant="outline"
                   size="sm"
                   disabled={pagination.page >= pagination.pages}
-                  onClick={() => loadData(pagination.page + 1)}
+                  onClick={() => setPage(pagination.page + 1)}
                 >
                   Next
                 </Button>

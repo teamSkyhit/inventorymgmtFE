@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '@/lib/auth-context'
 import { useStores } from '@/lib/hooks/useStores'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -20,8 +21,6 @@ import logger from '@/lib/logger'
 export default function ReportsPage() {
   const { user } = useAuth()
   const { data: stores = [] } = useStores()
-  const fetchDebounce = useRef(null)
-  const [loading, setLoading] = useState(false)
   const [activeTab, setActiveTab] = useState('sales')
 
   // Filters
@@ -29,14 +28,6 @@ export default function ReportsPage() {
   const [endDate, setEndDate] = useState('')
   const [selectedStore, setSelectedStore] = useState('all')
   const [selectedCounter, setSelectedCounter] = useState('all')
-
-  // Data
-  const [counters, setCounters] = useState([])
-  const [salesData, setSalesData] = useState(null)
-  const [paymentData, setPaymentData] = useState(null)
-  const [inventoryData, setInventoryData] = useState(null)
-  const [cashReconData, setCashReconData] = useState(null)
-  const [counterWiseData, setCounterWiseData] = useState(null)
 
   // Set default dates (today and 30 days ago)
   useEffect(() => {
@@ -46,91 +37,63 @@ export default function ReportsPage() {
     setStartDate(thirtyDaysAgo)
   }, [])
 
-  // Fetch counters when store changes
+  const { data: counters = [] } = useQuery({
+    queryKey: ['counters', selectedStore],
+    queryFn: async () => {
+      const res = await countersAPI.getAll(user.token, selectedStore)
+      if (!res.success) throw new Error(res.message || 'Failed to fetch counters')
+      return res.data || []
+    },
+    enabled: !!user?.token && selectedStore !== 'all',
+  })
+
+  // Debounce filter edits (e.g. typing a date) so each keystroke doesn't fire a request
+  const [params, setParams] = useState(null)
   useEffect(() => {
-    const fetchCounters = async () => {
-      if (!user?.token || selectedStore === 'all') {
-        setCounters([])
-        return
-      }
-      try {
-        const response = await countersAPI.getAll(user.token, selectedStore)
-        if (response.success) {
-          setCounters(response.data || [])
-        }
-      } catch (error) {
-        logger.error('Error fetching counters:', error)
-      }
-    }
-    fetchCounters()
-  }, [user?.token, selectedStore])
+    const t = setTimeout(() => {
+      const p = {}
+      if (startDate) p.startDate = startDate
+      if (endDate) p.endDate = endDate
+      if (selectedStore !== 'all') p.storeId = selectedStore
+      if (selectedCounter !== 'all') p.counterId = selectedCounter
+      setParams(p)
+    }, 400)
+    return () => clearTimeout(t)
+  }, [startDate, endDate, selectedStore, selectedCounter])
 
-  // Fetch report data
-  const fetchReport = async (reportType) => {
-    if (!user?.token) return
-
-    if (startDate && endDate && startDate > endDate) {
-      toast.error('Start date cannot be after end date')
-      return
-    }
-
-    setLoading(true)
-    try {
-      const params = {}
-      if (startDate) params.startDate = startDate
-      if (endDate) params.endDate = endDate
-      if (selectedStore !== 'all') params.storeId = selectedStore
-      if (selectedCounter !== 'all') params.counterId = selectedCounter
-
-      let response
-      switch (reportType) {
-        case 'sales':
-          response = await reportsAPI.getSalesReport(user.token, params)
-          if (response.success) setSalesData(response.data)
-          break
-        case 'payment':
-          response = await reportsAPI.getPaymentModeReport(user.token, params)
-          if (response.success) setPaymentData(response.data)
-          break
-        case 'inventory':
-          const inventoryParams = { ...params }
-          if (selectedStore !== 'all') {
-            inventoryParams.storeId = selectedStore
-          }
-          response = await reportsAPI.getInventoryReport(user.token, inventoryParams)
-          if (response.success) setInventoryData(response.data)
-          break
-        case 'cash-recon':
-          response = await reportsAPI.getCashReconciliationReport(user.token, params)
-          if (response.success) setCashReconData(response.data)
-          break
-        case 'counter-wise':
-          response = await reportsAPI.getCounterWiseReport(user.token, params)
-          if (response.success) setCounterWiseData(response.data)
-          break
-      }
-
-      if (response && !response.success) {
-        toast.error(response.message || 'Failed to fetch report')
-      }
-    } catch (error) {
-      logger.error(`Error fetching ${reportType} report:`, error)
-      toast.error('Failed to fetch report')
-    } finally {
-      setLoading(false)
-    }
+  const dateRangeValid = !(startDate && endDate && startDate > endDate)
+  const REPORT_FETCHERS = {
+    sales: reportsAPI.getSalesReport,
+    payment: reportsAPI.getPaymentModeReport,
+    inventory: reportsAPI.getInventoryReport,
+    'cash-recon': reportsAPI.getCashReconciliationReport,
+    'counter-wise': reportsAPI.getCounterWiseReport,
   }
 
-  // Auto-fetch when tab changes or filters change — 400ms debounce to avoid
-  // firing on every keystroke when user is typing date values
+  const reportQuery = useQuery({
+    queryKey: ['reports', activeTab, params],
+    queryFn: async () => {
+      const res = await REPORT_FETCHERS[activeTab](user.token, params)
+      if (!res.success) throw new Error(res.message || 'Failed to fetch report')
+      return res.data
+    },
+    enabled: !!user?.token && !!params && dateRangeValid,
+  })
+
   useEffect(() => {
-    if (!activeTab || !user?.token) return
-    if (fetchDebounce.current) clearTimeout(fetchDebounce.current)
-    fetchDebounce.current = setTimeout(() => {
-      fetchReport(activeTab)
-    }, 400)
-    return () => clearTimeout(fetchDebounce.current)
-  }, [activeTab, startDate, endDate, selectedStore, selectedCounter, user?.token])
+    if (reportQuery.isError) {
+      logger.error(`Error fetching ${activeTab} report:`, reportQuery.error)
+      toast.error(reportQuery.error?.message || 'Failed to fetch report')
+    }
+  }, [reportQuery.isError])
+
+  const loading = reportQuery.isFetching
+  const dataFor = (tab) => (activeTab === tab ? reportQuery.data ?? null : null)
+  const salesData = dataFor('sales')
+  const paymentData = dataFor('payment')
+  const inventoryData = dataFor('inventory')
+  const cashReconData = dataFor('cash-recon')
+  const counterWiseData = dataFor('counter-wise')
 
   // Export to Excel (placeholder - would need a library like xlsx)
   const handleExport = (reportType) => {
@@ -209,7 +172,7 @@ export default function ReportsPage() {
               </div>
             </div>
             <div className="flex gap-2 mt-4">
-              <Button onClick={() => fetchReport(activeTab)} disabled={loading}>
+              <Button onClick={() => reportQuery.refetch()} disabled={loading}>
                 <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
                 Refresh
               </Button>
