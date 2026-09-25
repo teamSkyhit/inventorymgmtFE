@@ -1,7 +1,7 @@
 ﻿'use client';
 
 import { useEffect, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import ProtectedRoute from '@/components/protected-route';
 import {
   Card,
@@ -42,10 +42,12 @@ import ImageUpload from '@/components/image-upload';
 import { productsAPI, shelvesAPI, brassRateAPI } from '@/lib/api';
 import logger from '@/lib/logger';
 import { productSchema, formatZodError, getFieldErrors } from '@/lib/validations';
+import { invalidateFor } from '@/lib/cacheSync';
 
 export default function AddProductPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const qc = useQueryClient();
   const { categories } = useCommon();
   const [subCategoryList, setSubCategoryList] = useState([]);
   const [errors, setErrors] = useState({});
@@ -335,6 +337,7 @@ export default function AddProductPage() {
     if (response.success) {
       logger.info('Product created successfully:', { name: validatedData.name });
       toast.success('Product added successfully!');
+      await invalidateFor(qc, 'product');
       router.push('/inventory');
     } else {
       // Don't show error toast for session timeout - modal will handle it
@@ -626,6 +629,7 @@ export default function AddProductPage() {
       
       if (response.success) {
         toast.success(`Successfully created parent product with ${variantsArray.length} variant(s)!`);
+        await invalidateFor(qc, 'product');
         router.push('/inventory');
       } else {
         if (response.sessionExpired) {

@@ -1,4 +1,5 @@
 ﻿'use client';
+import { invalidateFor } from '@/lib/cacheSync';
 
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -306,7 +307,7 @@ export default function InventoryPage() {
         if (filteredProducts.length === 1 && currentPage > 1) {
           setCurrentPage(prev => prev - 1);
         } else {
-          qc.invalidateQueries({ queryKey: ['products'] });
+          invalidateFor(qc, 'product');
         }
       } else {
         toast.error(response.message || 'Failed to delete product');
@@ -343,7 +344,7 @@ export default function InventoryPage() {
         if (filteredProducts.length === 1 && currentPage > 1) {
           setCurrentPage(prev => prev - 1);
         } else {
-          qc.invalidateQueries({ queryKey: ['products'] });
+          invalidateFor(qc, 'product');
         }
       } else {
         toast.error(response.message || 'Failed to delete variant');
@@ -974,7 +975,7 @@ export default function InventoryPage() {
           logger.info('Variant updated successfully:', { id: editingProduct.id });
           toast.success('Variant updated successfully');
           setIsEditModalOpen(false);
-          qc.invalidateQueries({ queryKey: ['products'] });
+          invalidateFor(qc, 'product');
         } else {
           logger.error('Variant update failed:', response.message);
           toast.error(response.message || 'Failed to update variant');
@@ -1044,7 +1045,7 @@ export default function InventoryPage() {
         logger.info('Product updated successfully:', { id: editingProduct.id });
         toast.success('Product updated successfully');
         setIsEditModalOpen(false);
-        qc.invalidateQueries({ queryKey: ['products'] });
+        invalidateFor(qc, 'product');
       } else {
         logger.error('Product update failed:', response.message);
         toast.error(response.message || 'Failed to update product');
@@ -2228,7 +2229,7 @@ export default function InventoryPage() {
                                       if (response.success) {
                                         toast.success('Variant removed successfully');
                                         setEditingVariants(editingVariants.filter(v => v.id !== variant.id));
-                                        qc.invalidateQueries({ queryKey: ['products'] });
+                                        invalidateFor(qc, 'product');
                                       } else {
                                         toast.error(response.message || 'Failed to remove variant');
                                       }
@@ -2315,7 +2316,7 @@ export default function InventoryPage() {
                   setEditingVariants(productResponse.data.variants || []);
                   setEditingProduct(productResponse.data);
                 }
-                qc.invalidateQueries({ queryKey: ['products'] });
+                invalidateFor(qc, 'product');
               } else {
                 toast.error(response.message || 'Failed to save variant');
               }

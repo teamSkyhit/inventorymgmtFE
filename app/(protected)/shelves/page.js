@@ -1,4 +1,5 @@
 ﻿'use client'
+import { invalidateFor } from '@/lib/cacheSync';
 
 import { useCallback, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -63,7 +64,7 @@ export default function ShelvesPage() {
     enabled: !!user?.token,
   })
 
-  const refreshShelves = () => qc.invalidateQueries({ queryKey: ['shelves'] })
+  const refreshShelves = () => invalidateFor(qc, 'shelf')
 
   const selectedShelf = useMemo(
     () => shelves.find((shelf) => shelf.id === selectedShelfId) || null,

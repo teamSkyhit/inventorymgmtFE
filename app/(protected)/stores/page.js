@@ -1,4 +1,5 @@
 ﻿'use client';
+import { invalidateFor } from '@/lib/cacheSync';
 
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -138,7 +139,7 @@ export default function StoresPage() {
       if (response.success) {
         toast.success(response.message || `Store ${editingStore ? 'updated' : 'created'} successfully`);
         handleCloseModal();
-        qc.invalidateQueries({ queryKey: ['stores'] });
+        invalidateFor(qc, 'store');
       } else {
         toast.error(response.message || `Failed to ${editingStore ? 'update' : 'create'} store`);
       }
@@ -158,7 +159,7 @@ export default function StoresPage() {
       const response = await storesAPI.delete(store.id, user.token);
       if (response.success) {
         toast.success('Store deleted successfully');
-        qc.invalidateQueries({ queryKey: ['stores'] });
+        invalidateFor(qc, 'store');
       } else {
         toast.error(response.message || 'Failed to delete store');
       }

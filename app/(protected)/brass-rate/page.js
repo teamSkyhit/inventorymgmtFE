@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/lib/auth-context'
+import { invalidateFor } from '@/lib/cacheSync'
 import { brassRateAPI } from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -30,6 +32,7 @@ const formatRate = (r) => {
 
 export default function BrassRatePage() {
   const { user } = useAuth()
+  const qc = useQueryClient()
 
   const [currentRate, setCurrentRate]   = useState(null)
   const [history, setHistory]           = useState([])
@@ -87,6 +90,7 @@ export default function BrassRatePage() {
         setFormNotes('')
         setFormDate(today)
         loadData()
+        invalidateFor(qc, 'brassRate')
       } else {
         toast.error(res.message || 'Failed to update rate')
       }
@@ -108,6 +112,7 @@ export default function BrassRatePage() {
         toast.success('Rate corrected')
         setEditingId(null)
         loadData(pagination.page)
+        invalidateFor(qc, 'brassRate')
       } else {
         toast.error(res.message || 'Failed to update')
       }

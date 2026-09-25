@@ -1,4 +1,5 @@
 ﻿'use client'
+import { invalidateFor } from '@/lib/cacheSync';
 
 import { useState, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -205,7 +206,7 @@ export default function ReturnsPage() {
         exchangeQuantity: '',
         notes: '',
       })
-      qc.invalidateQueries({ queryKey: ['returns'] })
+      invalidateFor(qc, 'return')
     } catch (error) {
       logger.error('Error processing return:', error)
       toast.error(error.message || 'Failed to process return')

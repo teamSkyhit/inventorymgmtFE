@@ -1,4 +1,5 @@
 'use client';
+import { invalidateFor } from '@/lib/cacheSync';
 
 import { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -138,7 +139,7 @@ export default function StoreInventoryPage() {
             : 'Product added to store successfully'
         );
         handleCloseModal();
-        qc.invalidateQueries({ queryKey: ['store-inventory', storeId] });
+        invalidateFor(qc, 'storeInventory');
       } else {
         toast.error(response.message || 'Failed to update store inventory');
       }

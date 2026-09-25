@@ -1,4 +1,5 @@
 ﻿'use client'
+import { invalidateFor } from '@/lib/cacheSync';
 
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -135,7 +136,7 @@ export default function UsersPage() {
         if (response.success) {
           toast.success('User updated successfully')
           setIsDialogOpen(false)
-          qc.invalidateQueries({ queryKey: ['users'] })
+          invalidateFor(qc, 'user')
         } else {
           toast.error(response.message || response.error || 'Failed to update user')
         }
@@ -144,7 +145,7 @@ export default function UsersPage() {
         if (response.success) {
           toast.success('User added successfully')
           setIsDialogOpen(false)
-          qc.invalidateQueries({ queryKey: ['users'] })
+          invalidateFor(qc, 'user')
         } else {
           toast.error(response.message || response.error || 'Failed to create user')
         }
@@ -162,7 +163,7 @@ export default function UsersPage() {
       const response = await usersAPI.delete(userId, user.token)
       if (response.success) {
         toast.success('User deleted successfully')
-        fetchUsers()
+        invalidateFor(qc, 'user')
       } else {
         toast.error(response.message || 'Failed to delete user')
       }
@@ -188,7 +189,7 @@ export default function UsersPage() {
       if (response.success) {
         toast.success(`POS PIN updated for ${pinTargetUser.name}`)
         setIsPinDialogOpen(false)
-        fetchUsers()
+        invalidateFor(qc, 'user')
       } else {
         toast.error(response.error || 'Failed to set PIN')
       }

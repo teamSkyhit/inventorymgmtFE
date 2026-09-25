@@ -1,4 +1,5 @@
 ﻿'use client';
+import { invalidateFor } from '@/lib/cacheSync';
 
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -180,7 +181,7 @@ export default function StockTransfersPage() {
       if (response.success) {
         toast.success('Stock transfer requested successfully');
         handleCloseModal();
-        qc.invalidateQueries({ queryKey: ['transfers'] });
+        invalidateFor(qc, 'stockTransfer');
       } else {
         toast.error(response.message || 'Failed to request stock transfer');
       }
@@ -232,7 +233,7 @@ export default function StockTransfersPage() {
 
       if (response.success) {
         toast.success(`Transfer ${actionMessages[action]}ed successfully`);
-        qc.invalidateQueries({ queryKey: ['transfers'] });
+        invalidateFor(qc, 'stockTransfer');
       } else {
         toast.error(response.message || `Failed to ${action} transfer`);
       }
