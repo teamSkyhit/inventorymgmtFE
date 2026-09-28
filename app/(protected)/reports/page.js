@@ -17,6 +17,7 @@ import { FileText, Download, RefreshCw, TrendingUp, DollarSign, Package, CreditC
 import { toast } from 'sonner'
 import { reportsAPI, countersAPI } from '@/lib/api'
 import logger from '@/lib/logger'
+import * as XLSX from 'xlsx'
 
 export default function ReportsPage() {
   const { user } = useAuth()
@@ -95,10 +96,138 @@ export default function ReportsPage() {
   const cashReconData = dataFor('cash-recon')
   const counterWiseData = dataFor('counter-wise')
 
-  // Export to Excel (placeholder - would need a library like xlsx)
   const handleExport = (reportType) => {
-    toast.info('Excel export feature coming soon')
-    // TODO: Implement Excel export using xlsx library
+    const data = reportQuery.data
+    if (!data) { toast.error('No data to export'); return }
+
+    const dateLabel = `${startDate || 'all'}_to_${endDate || 'all'}`
+    let rows = []
+    let sheetName = 'Report'
+    let filename = `${reportType}_${dateLabel}.xlsx`
+
+    try {
+      if (reportType === 'sales') {
+        sheetName = 'Sales'
+        rows = (data.receipts || []).map(r => ({
+          'Receipt #': r.receiptNumber || '',
+          'Date': r.saleDate ? new Date(r.saleDate).toLocaleDateString('en-IN') : '',
+          'Store': r.store?.name || '',
+          'Customer Name': r.customerName || 'Walk-in',
+          'Customer Phone': r.customerPhone || '',
+          'Items': r.items?.length || 0,
+          'Subtotal (₹)': r.totalSubtotal?.toFixed(2) || '0.00',
+          'Discount (₹)': r.totalDiscount?.toFixed(2) || '0.00',
+          'GST (₹)': r.totalGst?.toFixed(2) || '0.00',
+          'Total (₹)': r.totalFinal?.toFixed(2) || '0.00',
+          'Payment Methods': (r.payments || []).map(p => `${p.method}:₹${Number(p.amount).toFixed(2)}`).join(', '),
+        }))
+        // Add summary row at bottom
+        if (data.summary) {
+          rows.push({})
+          rows.push({
+            'Receipt #': 'TOTAL',
+            'Items': data.summary.totalItems || 0,
+            'Subtotal (₹)': data.summary.totalSubtotal?.toFixed(2) || '0.00',
+            'Discount (₹)': data.summary.totalDiscount?.toFixed(2) || '0.00',
+            'GST (₹)': data.summary.totalGst?.toFixed(2) || '0.00',
+            'Total (₹)': data.summary.totalFinal?.toFixed(2) || '0.00',
+          })
+        }
+      } else if (reportType === 'payment') {
+        sheetName = 'Payment Modes'
+        rows = Object.entries(data.paymentStats || {}).map(([method, stats]) => ({
+          'Payment Method': method,
+          'Transactions': stats.count || 0,
+          'Amount (₹)': stats.amount?.toFixed(2) || '0.00',
+        }))
+        if (data.summary) {
+          rows.push({})
+          rows.push({
+            'Payment Method': 'TOTAL',
+            'Transactions': data.summary.totalPayments || 0,
+            'Amount (₹)': data.summary.totalAmount?.toFixed(2) || '0.00',
+          })
+        }
+      } else if (reportType === 'inventory') {
+        sheetName = 'Inventory'
+        rows = (data.products || []).map(item => ({
+          'Product': item.product?.name || '',
+          'SKU': item.product?.sku || '',
+          'Category': item.product?.category?.name || '',
+          'Store': item.store?.name || 'Global',
+          'Quantity': item.quantity || 0,
+          'Min Stock Level': item.minStockLevel || 0,
+          'Status': item.isLowStock ? 'Low Stock' : 'In Stock',
+          'Value (₹)': item.value?.toFixed(2) || '0.00',
+        }))
+        if (data.summary) {
+          rows.push({})
+          rows.push({
+            'Product': 'TOTAL',
+            'Quantity': data.summary.totalQuantity || 0,
+            'Value (₹)': data.summary.totalValue?.toFixed(2) || '0.00',
+          })
+        }
+      } else if (reportType === 'cash-recon') {
+        sheetName = 'Cash Reconciliation'
+        rows = (data.shifts || []).map(shift => ({
+          'Shift #': shift.shiftNumber || '',
+          'Counter': shift.counter?.name || '',
+          'Opened By': shift.openedBy?.name || '',
+          'Open Time': shift.openedAt ? new Date(shift.openedAt).toLocaleString('en-IN') : '',
+          'Close Time': shift.closedAt ? new Date(shift.closedAt).toLocaleString('en-IN') : 'Open',
+          'Opening Balance (₹)': shift.openingBalance?.toFixed(2) || '0.00',
+          'Cash Sales (₹)': shift.cashSales?.toFixed(2) || '0.00',
+          'Expected Balance (₹)': shift.expectedBalance?.toFixed(2) || '0.00',
+          'Actual Balance (₹)': shift.actualBalance?.toFixed(2) || 'N/A',
+          'Difference (₹)': shift.difference?.toFixed(2) || '0.00',
+          'Status': shift.status || '',
+        }))
+      } else if (reportType === 'counter-wise') {
+        sheetName = 'Counter-wise'
+        rows = (data.counters || []).map(c => ({
+          'Counter': c.counterName || '',
+          'Store': c.storeName || '',
+          'Receipts': c.receiptCount || 0,
+          'Items': c.itemCount || 0,
+          'Subtotal (₹)': c.totalSubtotal?.toFixed(2) || '0.00',
+          'Discount (₹)': c.totalDiscount?.toFixed(2) || '0.00',
+          'GST (₹)': c.totalGst?.toFixed(2) || '0.00',
+          'Total (₹)': c.totalFinal?.toFixed(2) || '0.00',
+          'Cash (₹)': Number(c.paymentStats?.CASH || 0).toFixed(2),
+          'UPI (₹)': Number(c.paymentStats?.UPI || 0).toFixed(2),
+          'Card (₹)': Number(c.paymentStats?.CARD || 0).toFixed(2),
+          'Wallet (₹)': Number(c.paymentStats?.WALLET || 0).toFixed(2),
+        }))
+        if (data.summary) {
+          rows.push({})
+          rows.push({
+            'Counter': 'TOTAL',
+            'Receipts': data.summary.totalReceipts || 0,
+            'Items': data.summary.totalItems || 0,
+            'Total (₹)': data.summary.totalFinal?.toFixed(2) || '0.00',
+          })
+        }
+      }
+
+      if (rows.length === 0) { toast.error('No records to export'); return }
+
+      const ws = XLSX.utils.json_to_sheet(rows)
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, sheetName)
+
+      // Auto-width columns
+      const colWidths = Object.keys(rows[0] || {}).map(key => ({
+        wch: Math.max(key.length, ...rows.map(r => String(r[key] || '').length)) + 2,
+      }))
+      ws['!cols'] = colWidths
+
+      XLSX.writeFile(wb, filename)
+      toast.success(`Exported ${rows.length} rows to ${filename}`)
+    } catch (err) {
+      logger.error('Excel export failed:', err)
+      toast.error('Export failed. Please try again.')
+    }
   }
 
   return (
