@@ -69,6 +69,9 @@ export default function AddProductPage() {
       size: [],
       weight: [],
       weightValue: '',
+      pricingBasis: 'WEIGHT',
+      lengthPerUnit: '',
+      lengthUnit: 'FOOT',
       quantity: '',
       minStockLevel: '',
       allowNegativeStock: true,
@@ -109,6 +112,9 @@ export default function AddProductPage() {
     hidePrice: false,
     websiteSlug: '',
     websiteImages: [],
+    pricingBasis: 'WEIGHT',
+    lengthPerUnit: '',
+    lengthUnit: 'FOOT',
   });
   const [tempInputs, setTempInputs] = useState({
     modelType: '',
@@ -156,46 +162,124 @@ export default function AddProductPage() {
     return Math.round(w * rate * 100) / 100;
   };
 
-  const renderBrassWeightField = ({ id, value, onChange, error }) => {
-    const preview = brassPricePreview(value);
+  const calcLengthPreview = (lengthPerUnit, lengthUnit, brassRate) => {
+    const l = Number(lengthPerUnit);
+    if (!l || l <= 0 || !brassRate) return null;
+    let rate = null;
+    if (lengthUnit === 'FOOT') rate = brassRate.ratePerFoot != null ? Number(brassRate.ratePerFoot) : null;
+    else if (lengthUnit === 'METER') rate = brassRate.ratePerMeter != null ? Number(brassRate.ratePerMeter) : null;
+    else if (lengthUnit === 'INCH') rate = brassRate.ratePerFoot != null ? Number(brassRate.ratePerFoot) / 12 : null;
+    else if (lengthUnit === 'CM') rate = brassRate.ratePerMeter != null ? Number(brassRate.ratePerMeter) / 100 : null;
+    if (!rate) return null;
+    return Math.round(l * rate * 100) / 100;
+  };
+
+  const renderBrassPricingField = ({ weightId, weightValue, onWeightChange, weightError, pricingBasis, onBasisChange, lengthPerUnit, onLengthChange, lengthUnit, onUnitChange, lengthError }) => {
+    const weightPreview = brassPricePreview(weightValue);
+    const lengthPreview = calcLengthPreview(lengthPerUnit, lengthUnit, currentBrassRate);
     return (
-      <div className="rounded-lg border border-amber-300 bg-amber-50/50 p-4 space-y-3">
+      <div className="rounded-lg border border-amber-300 bg-amber-50/50 p-4 space-y-4">
         <div className="flex items-center gap-2 text-sm font-medium text-amber-800">
           <IndianRupee className="h-4 w-4" />
-          Brass rate pricing — price is calculated from weight
+          Brass rate pricing
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
-          <div className="space-y-2">
-            <Label htmlFor={id}>Weight (grams) <span className="text-destructive">*</span></Label>
-            <Input
-              id={id}
-              type="number"
-              step="0.001"
-              min="0"
-              placeholder="250"
-              value={value}
-              onChange={(e) => onChange(e.target.value)}
-              className={error ? 'border-destructive' : ''}
-            />
-            {error && <p className="text-sm text-destructive">{error}</p>}
-          </div>
-          <div className="text-sm">
-            {currentBrassRate ? (
-              <>
-                <div className="text-muted-foreground">
-                  Today&apos;s rate: ₹{Number(currentBrassRate.rate).toLocaleString('en-IN', { minimumFractionDigits: 2 })}/g
-                </div>
-                <div className="text-lg font-semibold">
-                  {preview != null
-                    ? `Price: ₹${preview.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
-                    : 'Enter weight to see price'}
-                </div>
-              </>
-            ) : (
-              <div className="text-amber-800">No brass rate set yet — set one on the Brass Rate page.</div>
-            )}
-          </div>
+
+        {/* Pricing basis selector */}
+        <div className="space-y-2">
+          <Label>Pricing Basis <span className="text-destructive">*</span></Label>
+          <RadioGroup value={pricingBasis} onValueChange={onBasisChange} className="flex gap-6">
+            <div className="flex items-center gap-2">
+              <RadioGroupItem value="WEIGHT" id={`${weightId}-basis-weight`} />
+              <Label htmlFor={`${weightId}-basis-weight`} className="font-normal cursor-pointer">By Weight (grams)</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <RadioGroupItem value="LENGTH" id={`${weightId}-basis-length`} />
+              <Label htmlFor={`${weightId}-basis-length`} className="font-normal cursor-pointer">By Length (foot/meter)</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <RadioGroupItem value="FIXED" id={`${weightId}-basis-fixed`} />
+              <Label htmlFor={`${weightId}-basis-fixed`} className="font-normal cursor-pointer">Fixed Price</Label>
+            </div>
+          </RadioGroup>
         </div>
+
+        {/* Weight fields */}
+        {pricingBasis === 'WEIGHT' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+            <div className="space-y-2">
+              <Label htmlFor={weightId}>Weight (grams) <span className="text-destructive">*</span></Label>
+              <Input
+                id={weightId}
+                type="number" step="0.001" min="0" placeholder="250"
+                value={weightValue}
+                onChange={(e) => onWeightChange(e.target.value)}
+                className={weightError ? 'border-destructive' : ''}
+              />
+              {weightError && <p className="text-sm text-destructive">{weightError}</p>}
+            </div>
+            <div className="text-sm">
+              {currentBrassRate ? (
+                <>
+                  <div className="text-muted-foreground">Rate: ₹{Number(currentBrassRate.rate).toLocaleString('en-IN', { minimumFractionDigits: 2 })}/g</div>
+                  <div className="text-lg font-semibold">
+                    {weightPreview != null ? `Price: ₹${weightPreview.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : 'Enter weight to see price'}
+                  </div>
+                </>
+              ) : <div className="text-amber-800">No brass rate set — set one on the Brass Rate page.</div>}
+            </div>
+          </div>
+        )}
+
+        {/* Length fields */}
+        {pricingBasis === 'LENGTH' && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+            <div className="space-y-2">
+              <Label>Length per unit <span className="text-destructive">*</span></Label>
+              <Input
+                type="number" step="0.001" min="0" placeholder="1.5"
+                value={lengthPerUnit}
+                onChange={(e) => onLengthChange(e.target.value)}
+                className={lengthError ? 'border-destructive' : ''}
+              />
+              {lengthError && <p className="text-sm text-destructive">{lengthError}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label>Unit</Label>
+              <Select value={lengthUnit} onValueChange={onUnitChange}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="FOOT">Foot</SelectItem>
+                  <SelectItem value="METER">Meter</SelectItem>
+                  <SelectItem value="INCH">Inch</SelectItem>
+                  <SelectItem value="CM">CM</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="text-sm">
+              {currentBrassRate ? (
+                <>
+                  {lengthUnit === 'FOOT' && currentBrassRate.ratePerFoot != null && (
+                    <div className="text-muted-foreground">Rate: ₹{Number(currentBrassRate.ratePerFoot).toLocaleString('en-IN', { minimumFractionDigits: 2 })}/ft</div>
+                  )}
+                  {lengthUnit === 'METER' && currentBrassRate.ratePerMeter != null && (
+                    <div className="text-muted-foreground">Rate: ₹{Number(currentBrassRate.ratePerMeter).toLocaleString('en-IN', { minimumFractionDigits: 2 })}/m</div>
+                  )}
+                  {(lengthUnit === 'INCH' || lengthUnit === 'CM') && (
+                    <div className="text-muted-foreground text-xs">Derived from {lengthUnit === 'INCH' ? 'per-foot' : 'per-meter'} rate</div>
+                  )}
+                  <div className="text-lg font-semibold">
+                    {lengthPreview != null ? `Price: ₹${lengthPreview.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : 'Enter length to see price'}
+                  </div>
+                </>
+              ) : <div className="text-amber-800">No brass rate set — set one on the Brass Rate page.</div>}
+            </div>
+          </div>
+        )}
+
+        {/* Fixed price note */}
+        {pricingBasis === 'FIXED' && (
+          <p className="text-sm text-amber-800">Price will be taken from the Sale Price / MRP fields above — not calculated from brass rate.</p>
+        )}
       </div>
     );
   };
@@ -298,10 +382,20 @@ export default function AddProductPage() {
     }
 
     const weightValue = Number(formData.weightValue);
-    if (isBrassCategory && !(weightValue > 0)) {
-      setErrors({ weightValue: 'Weight is required for brass products' });
-      toast.error('Weight (grams) is required for brass products');
-      return;
+    const pricingBasis = formData.pricingBasis || 'WEIGHT';
+    const lengthPerUnit = Number(formData.lengthPerUnit);
+
+    if (isBrassCategory) {
+      if (pricingBasis === 'WEIGHT' && !(weightValue > 0)) {
+        setErrors({ weightValue: 'Weight is required for brass products with weight-based pricing' });
+        toast.error('Weight (grams) is required for brass products with weight-based pricing');
+        return;
+      }
+      if (pricingBasis === 'LENGTH' && !(lengthPerUnit > 0)) {
+        setErrors({ lengthPerUnit: 'Length per unit is required for length-based pricing' });
+        toast.error('Length per unit is required for length-based pricing');
+        return;
+      }
     }
 
     const validatedData = validationResult.data;
@@ -320,6 +414,9 @@ export default function AddProductPage() {
       weight: validatedData.weight || null,
       weightValue: weightValue > 0 ? weightValue : null,
       weightUnit: 'g',
+      pricingBasis,
+      lengthPerUnit: lengthPerUnit > 0 ? lengthPerUnit : null,
+      lengthUnit: formData.lengthUnit || null,
       quantity: validatedData.quantity || 0,
       minStockLevel: validatedData.minStockLevel || null,
       allowNegativeStock: validatedData.allowNegativeStock !== undefined ? validatedData.allowNegativeStock : true,
@@ -379,8 +476,9 @@ export default function AddProductPage() {
       // Debug: Log each variant's barcode
       logger.info(`Variant ${index + 1} (ID: ${variant.id}): barcode="${variant.barcode}", trimmed="${barcode}", isEmpty=${!barcode || barcode === ''}`);
       
-      if (isBrassCategory && !(Number(variant.weightValue) > 0)) {
-        variantErrors[`variant_${variant.id}_weightValue`] = 'Weight is required for brass products';
+      const vBasis = variant.pricingBasis || 'WEIGHT';
+      if (isBrassCategory && vBasis === 'WEIGHT' && !(Number(variant.weightValue) > 0)) {
+        variantErrors[`variant_${variant.id}_weightValue`] = 'Weight is required for brass products with weight-based pricing';
         hasErrors = true;
       }
 
@@ -538,6 +636,9 @@ export default function AddProductPage() {
           packType: packTypeStr, // Single packType per variant
           weight: weightStr, // Single weight per variant
           weightValue: Number(variant.weightValue) > 0 ? Number(variant.weightValue) : null,
+          pricingBasis: variant.pricingBasis || 'WEIGHT',
+          lengthPerUnit: Number(variant.lengthPerUnit) > 0 ? Number(variant.lengthPerUnit) : null,
+          lengthUnit: variant.lengthUnit || null,
           mrp: variant.mrp ? Number(variant.mrp) : null,
           salePrice: variant.salePrice ? Number(variant.salePrice) : null,
           quantity: variant.quantity ? Number(variant.quantity) : 0,
@@ -1217,11 +1318,18 @@ export default function AddProductPage() {
                 </div>
 
                 {isBrassCategory ? (
-                  renderBrassWeightField({
-                    id: 'weightValue',
-                    value: formData.weightValue,
-                    onChange: (v) => handleChange('weightValue', v),
-                    error: errors.weightValue,
+                  renderBrassPricingField({
+                    weightId: 'weightValue',
+                    weightValue: formData.weightValue,
+                    onWeightChange: (v) => handleChange('weightValue', v),
+                    weightError: errors.weightValue,
+                    pricingBasis: formData.pricingBasis || 'WEIGHT',
+                    onBasisChange: (v) => handleChange('pricingBasis', v),
+                    lengthPerUnit: formData.lengthPerUnit,
+                    onLengthChange: (v) => handleChange('lengthPerUnit', v),
+                    lengthUnit: formData.lengthUnit || 'FOOT',
+                    onUnitChange: (v) => handleChange('lengthUnit', v),
+                    lengthError: errors.lengthPerUnit,
                   })
                 ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1867,11 +1975,18 @@ export default function AddProductPage() {
 
                               {/* Pricing */}
                               {isBrassCategory ? (
-                                renderBrassWeightField({
-                                  id: `variant-${variant.id}-weightValue`,
-                                  value: variant.weightValue,
-                                  onChange: (v) => updateVariant(variant.id, 'weightValue', v),
-                                  error: errors[`variant_${variant.id}_weightValue`],
+                                renderBrassPricingField({
+                                  weightId: `variant-${variant.id}-weightValue`,
+                                  weightValue: variant.weightValue,
+                                  onWeightChange: (v) => updateVariant(variant.id, 'weightValue', v),
+                                  weightError: errors[`variant_${variant.id}_weightValue`],
+                                  pricingBasis: variant.pricingBasis || 'WEIGHT',
+                                  onBasisChange: (v) => updateVariant(variant.id, 'pricingBasis', v),
+                                  lengthPerUnit: variant.lengthPerUnit,
+                                  onLengthChange: (v) => updateVariant(variant.id, 'lengthPerUnit', v),
+                                  lengthUnit: variant.lengthUnit || 'FOOT',
+                                  onUnitChange: (v) => updateVariant(variant.id, 'lengthUnit', v),
+                                  lengthError: errors[`variant_${variant.id}_lengthPerUnit`],
                                 })
                               ) : (
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

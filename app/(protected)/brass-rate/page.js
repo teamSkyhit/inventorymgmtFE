@@ -40,12 +40,16 @@ export default function BrassRatePage() {
   // New rate form
   const today = new Date().toISOString().split('T')[0]
   const [formRate, setFormRate]         = useState('')
+  const [formRatePerFoot, setFormRatePerFoot] = useState('')
+  const [formRatePerMeter, setFormRatePerMeter] = useState('')
   const [formDate, setFormDate]         = useState(today)
   const [formNotes, setFormNotes]       = useState('')
 
   // Inline edit state
   const [editingId, setEditingId]       = useState(null)
   const [editRate, setEditRate]         = useState('')
+  const [editRatePerFoot, setEditRatePerFoot] = useState('')
+  const [editRatePerMeter, setEditRatePerMeter] = useState('')
 
   const currentQuery = useQuery({
     queryKey: ['brassRate', 'current'],
@@ -85,12 +89,20 @@ export default function BrassRatePage() {
     setSubmitting(true)
     try {
       const res = await brassRateAPI.create(
-        { rate: Number(formRate), effectiveDate: formDate, notes: formNotes || undefined },
+        {
+          rate: Number(formRate),
+          ratePerFoot: formRatePerFoot ? Number(formRatePerFoot) : undefined,
+          ratePerMeter: formRatePerMeter ? Number(formRatePerMeter) : undefined,
+          effectiveDate: formDate,
+          notes: formNotes || undefined,
+        },
         user.token
       )
       if (res.success) {
         toast.success('Brass rate updated successfully')
         setFormRate('')
+        setFormRatePerFoot('')
+        setFormRatePerMeter('')
         setFormNotes('')
         setFormDate(today)
         setPage(1)
@@ -111,10 +123,16 @@ export default function BrassRatePage() {
       return
     }
     try {
-      const res = await brassRateAPI.update(id, { rate: Number(editRate) }, user.token)
+      const res = await brassRateAPI.update(id, {
+        rate: Number(editRate),
+        ratePerFoot: editRatePerFoot ? Number(editRatePerFoot) : null,
+        ratePerMeter: editRatePerMeter ? Number(editRatePerMeter) : null,
+      }, user.token)
       if (res.success) {
         toast.success('Rate corrected')
         setEditingId(null)
+        setEditRatePerFoot('')
+        setEditRatePerMeter('')
         invalidateFor(qc, 'brassRate')
       } else {
         toast.error(res.message || 'Failed to update')
@@ -151,15 +169,27 @@ export default function BrassRatePage() {
           <CardContent>
             {currentRate ? (
               <div className="space-y-1">
-                <div className="flex items-end gap-3">
-                  <span className="text-4xl font-bold tracking-tight">
-                    ₹{Number(currentRate.rate).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                  </span>
-                  <span className="text-muted-foreground text-lg mb-1">/gram</span>
+                <div className="flex items-end gap-3 flex-wrap">
+                  <div>
+                    <span className="text-4xl font-bold tracking-tight">
+                      ₹{Number(currentRate.rate).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </span>
+                    <span className="text-muted-foreground text-lg ml-1">/gram</span>
+                  </div>
+                  {currentRate.ratePerFoot != null && (
+                    <div className="text-sm font-medium bg-muted rounded px-2 py-1">
+                      ₹{Number(currentRate.ratePerFoot).toLocaleString('en-IN', { minimumFractionDigits: 2 })}/foot
+                    </div>
+                  )}
+                  {currentRate.ratePerMeter != null && (
+                    <div className="text-sm font-medium bg-muted rounded px-2 py-1">
+                      ₹{Number(currentRate.ratePerMeter).toLocaleString('en-IN', { minimumFractionDigits: 2 })}/meter
+                    </div>
+                  )}
                   {rateChange !== null && (
                     <Badge variant={rateChange >= 0 ? 'default' : 'destructive'} className="mb-1">
                       {rateChange >= 0 ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
-                      {rateChange >= 0 ? '+' : ''}{Number(rateChange).toFixed(2)}
+                      {rateChange >= 0 ? '+' : ''}{Number(rateChange).toFixed(2)}/g
                     </Badge>
                   )}
                 </div>
@@ -183,14 +213,20 @@ export default function BrassRatePage() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Quick Formula</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <div className="bg-muted rounded p-3 font-mono text-xs">
-              Price = Weight (g) × Rate (/g)
+            <div className="bg-muted rounded p-3 font-mono text-xs space-y-1">
+              <p>Weight: Price = Weight (g) × Rate (/g)</p>
+              <p>Length: Price = Length × Rate (/foot or /meter)</p>
             </div>
             {currentRate && (
               <div className="text-muted-foreground space-y-1">
                 <p>100g → ₹{(100 * Number(currentRate.rate)).toLocaleString('en-IN')}</p>
-                <p>250g → ₹{(250 * Number(currentRate.rate)).toLocaleString('en-IN')}</p>
                 <p>500g → ₹{(500 * Number(currentRate.rate)).toLocaleString('en-IN')}</p>
+                {currentRate.ratePerFoot != null && (
+                  <p>1 ft → ₹{Number(currentRate.ratePerFoot).toLocaleString('en-IN')}</p>
+                )}
+                {currentRate.ratePerMeter != null && (
+                  <p>1 m → ₹{Number(currentRate.ratePerMeter).toLocaleString('en-IN')}</p>
+                )}
               </div>
             )}
           </CardContent>
@@ -206,42 +242,70 @@ export default function BrassRatePage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-            <div className="space-y-2">
-              <Label htmlFor="rate">Rate per gram (₹) <span className="text-destructive">*</span></Label>
-              <Input
-                id="rate"
-                type="number"
-                step="0.01"
-                min="0.01"
-                placeholder="e.g. 750.00"
-                value={formRate}
-                onChange={(e) => setFormRate(e.target.value)}
-                required
-              />
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="rate">Rate per gram (₹) <span className="text-destructive">*</span></Label>
+                <Input
+                  id="rate"
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  placeholder="e.g. 750.00"
+                  value={formRate}
+                  onChange={(e) => setFormRate(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ratePerFoot">Rate per foot (₹) <span className="text-muted-foreground text-xs">(optional)</span></Label>
+                <Input
+                  id="ratePerFoot"
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  placeholder="e.g. 250.00"
+                  value={formRatePerFoot}
+                  onChange={(e) => setFormRatePerFoot(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ratePerMeter">Rate per meter (₹) <span className="text-muted-foreground text-xs">(optional)</span></Label>
+                <Input
+                  id="ratePerMeter"
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  placeholder="e.g. 820.00"
+                  value={formRatePerMeter}
+                  onChange={(e) => setFormRatePerMeter(e.target.value)}
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="effectiveDate">Effective Date <span className="text-destructive">*</span></Label>
-              <Input
-                id="effectiveDate"
-                type="date"
-                value={formDate}
-                onChange={(e) => setFormDate(e.target.value)}
-                required
-              />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+              <div className="space-y-2">
+                <Label htmlFor="effectiveDate">Effective Date <span className="text-destructive">*</span></Label>
+                <Input
+                  id="effectiveDate"
+                  type="date"
+                  value={formDate}
+                  onChange={(e) => setFormDate(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="notes">Notes (optional)</Label>
+                <Input
+                  id="notes"
+                  placeholder="e.g. Market rate update"
+                  value={formNotes}
+                  onChange={(e) => setFormNotes(e.target.value)}
+                />
+              </div>
+              <Button type="submit" disabled={submitting} className="w-full">
+                {submitting ? 'Updating...' : 'Set Rate'}
+              </Button>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="notes">Notes (optional)</Label>
-              <Input
-                id="notes"
-                placeholder="e.g. Market rate update"
-                value={formNotes}
-                onChange={(e) => setFormNotes(e.target.value)}
-              />
-            </div>
-            <Button type="submit" disabled={submitting} className="w-full">
-              {submitting ? 'Updating...' : 'Set Rate'}
-            </Button>
           </form>
         </CardContent>
       </Card>
@@ -260,8 +324,9 @@ export default function BrassRatePage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Date</TableHead>
-                <TableHead>Rate</TableHead>
-                <TableHead>Previous Rate</TableHead>
+                <TableHead>Per Gram</TableHead>
+                <TableHead>Per Foot</TableHead>
+                <TableHead>Per Meter</TableHead>
                 <TableHead>Change</TableHead>
                 <TableHead>Updated By</TableHead>
                 <TableHead>Time</TableHead>
@@ -272,13 +337,13 @@ export default function BrassRatePage() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                     Loading...
                   </TableCell>
                 </TableRow>
               ) : history.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                     No rate history yet
                   </TableCell>
                 </TableRow>
@@ -294,29 +359,55 @@ export default function BrassRatePage() {
                       <TableCell>
                         {isEditing ? (
                           <Input
-                            type="number"
-                            step="0.01"
-                            min="0.01"
+                            type="number" step="0.01" min="0.01"
                             value={editRate}
                             onChange={(e) => setEditRate(e.target.value)}
-                            className="w-28 h-8"
-                            autoFocus
+                            className="w-24 h-8" autoFocus
                           />
                         ) : (
                           <span className="font-semibold">{formatRate(entry.rate)}</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-muted-foreground">{formatRate(entry.previousRate)}</TableCell>
+                      <TableCell>
+                        {isEditing ? (
+                          <Input
+                            type="number" step="0.01" min="0.01"
+                            placeholder="—"
+                            value={editRatePerFoot}
+                            onChange={(e) => setEditRatePerFoot(e.target.value)}
+                            className="w-24 h-8"
+                          />
+                        ) : (
+                          <span className="text-muted-foreground">
+                            {entry.ratePerFoot != null ? `₹${Number(entry.ratePerFoot).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—'}
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {isEditing ? (
+                          <Input
+                            type="number" step="0.01" min="0.01"
+                            placeholder="—"
+                            value={editRatePerMeter}
+                            onChange={(e) => setEditRatePerMeter(e.target.value)}
+                            className="w-24 h-8"
+                          />
+                        ) : (
+                          <span className="text-muted-foreground">
+                            {entry.ratePerMeter != null ? `₹${Number(entry.ratePerMeter).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—'}
+                          </span>
+                        )}
+                      </TableCell>
                       <TableCell>
                         {change != null ? (
                           <Badge variant={change >= 0 ? 'default' : 'destructive'} className="text-xs">
-                            {change >= 0 ? '+' : ''}{Number(change).toFixed(2)}
+                            {change >= 0 ? '+' : ''}{Number(change).toFixed(2)}/g
                           </Badge>
                         ) : '—'}
                       </TableCell>
                       <TableCell>{entry.updatedBy?.name || '—'}</TableCell>
                       <TableCell className="text-muted-foreground text-xs">{formatTime(entry.createdAt)}</TableCell>
-                      <TableCell className="text-muted-foreground text-xs max-w-[160px] truncate">
+                      <TableCell className="text-muted-foreground text-xs max-w-[140px] truncate">
                         {entry.notes || '—'}
                       </TableCell>
                       <TableCell>
@@ -325,17 +416,22 @@ export default function BrassRatePage() {
                             <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleEditSave(entry.id)}>
                               <Check className="w-4 h-4 text-green-600" />
                             </Button>
-                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditingId(null)}>
+                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => {
+                              setEditingId(null); setEditRatePerFoot(''); setEditRatePerMeter('')
+                            }}>
                               <X className="w-4 h-4 text-destructive" />
                             </Button>
                           </div>
                         ) : (
                           <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7"
+                            size="icon" variant="ghost" className="h-7 w-7"
                             title="Correct this entry"
-                            onClick={() => { setEditingId(entry.id); setEditRate(Number(entry.rate).toString()) }}
+                            onClick={() => {
+                              setEditingId(entry.id)
+                              setEditRate(Number(entry.rate).toString())
+                              setEditRatePerFoot(entry.ratePerFoot != null ? Number(entry.ratePerFoot).toString() : '')
+                              setEditRatePerMeter(entry.ratePerMeter != null ? Number(entry.ratePerMeter).toString() : '')
+                            }}
                           >
                             <Edit2 className="w-4 h-4" />
                           </Button>

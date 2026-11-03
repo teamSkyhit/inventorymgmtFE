@@ -94,6 +94,7 @@ export default function BarcodeLabel({ product, store, productName }) {
   return (
     <div className="barcode-label print-label">
       <style jsx>{`
+        /* ── Outer container: fixed label size, 3-zone column ── */
         .barcode-label {
           width: 2in;
           height: 1in;
@@ -103,23 +104,14 @@ export default function BarcodeLabel({ product, store, productName }) {
           display: flex;
           flex-direction: column;
           font-family: Arial, sans-serif;
-          position: relative;
           box-sizing: border-box;
           overflow: hidden;
         }
 
+        /* ── Zone 1 (top, fixed): store name ── */
         .label-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          margin-bottom: 1px;
           flex-shrink: 0;
-        }
-
-        .store-info {
-          flex: 1;
-          text-align: left;
-          min-width: 0;
+          margin-bottom: 1px;
         }
 
         .store-name {
@@ -127,76 +119,81 @@ export default function BarcodeLabel({ product, store, productName }) {
           font-weight: bold;
           text-transform: uppercase;
           line-height: 1.1;
-          margin-bottom: 0;
+          white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
-          white-space: nowrap;
         }
 
-
+        /* ── Zone 2 (middle, flex): product name + barcode ── */
         .label-body {
-          display: flex;
           flex: 1;
-          gap: 3px;
-          align-items: flex-start;
           min-height: 0;
+          display: flex;
+          gap: 3px;
           overflow: hidden;
         }
 
-        .product-info {
+        .product-name-zone {
           flex: 1;
+          min-width: 0;
           display: flex;
           flex-direction: column;
-          justify-content: space-between;
-          min-width: 0;
-          max-width: calc(100% - 85px);
+          justify-content: center;
           overflow: hidden;
         }
 
         .product-name {
           font-size: 7px;
           font-weight: bold;
-          margin-top: 4px;
-          margin-bottom: 1px;
           text-transform: uppercase;
-          line-height: 1.1;
-          word-wrap: break-word;
-          overflow-wrap: break-word;
-          word-break: break-word;
-          white-space: normal;
-          max-width: 100%;
-          display: block;
+          line-height: 1.2;
           overflow: hidden;
-          max-height: 16px;
-          text-align: center;
+          display: -webkit-box;
+          -webkit-line-clamp: 3;
+          -webkit-box-orient: vertical;
+          word-break: break-word;
         }
 
         .product-code {
           font-size: 7px;
           font-weight: bold;
           color: #000;
-          margin-bottom: 1px;
           line-height: 1;
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
+          margin-top: 1px;
         }
 
-        .pricing-info {
-          margin-top: auto;
-          font-size: 8px;
+        .barcode-section {
           flex-shrink: 0;
+          width: 80px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+        }
+
+        .barcode-svg {
+          max-width: 100%;
+          max-height: 100%;
+          width: auto;
+          height: auto;
+        }
+
+        /* ── Zone 3 (bottom, fixed): pricing ── */
+        .label-footer {
+          flex-shrink: 0;
+          margin-top: 1px;
         }
 
         .price-row {
           display: flex;
-          justify-content: space-between;
-          margin-bottom: 1px;
+          align-items: baseline;
+          gap: 4px;
           line-height: 1.1;
-        }
-
-        .price-row.mrp-row {
-          justify-content: space-between;
+          margin-bottom: 1px;
         }
 
         .price-label {
@@ -218,23 +215,6 @@ export default function BarcodeLabel({ product, store, productName }) {
           line-height: 1;
           white-space: nowrap;
           margin-left: auto;
-        }
-
-        .barcode-section {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          min-width: 80px;
-          max-width: 80px;
-          flex-shrink: 0;
-        }
-
-        .barcode-svg {
-          max-width: 100%;
-          max-height: 35px;
-          height: auto;
-          width: auto;
         }
 
         @media print {
@@ -261,35 +241,32 @@ export default function BarcodeLabel({ product, store, productName }) {
         }
       `}</style>
 
-      {/* Header: Store Name */}
+      {/* Zone 1: Store name — always visible at top */}
       <div className="label-header">
-        <div className="store-info">
-          <div className="store-name">SRI OM GAYATRI POOJA STORES</div>
+        <div className="store-name">{storeName}</div>
+      </div>
+
+      {/* Zone 2: Product name + barcode — middle gets remaining space */}
+      <div className="label-body">
+        <div className="product-name-zone">
+          <div className="product-name">{displayProductName}</div>
+          {productCode && <div className="product-code">{productCode}</div>}
+        </div>
+        <div className="barcode-section">
+          <svg ref={barcodeRef} className="barcode-svg" />
         </div>
       </div>
 
-      {/* Body: Product Info and Barcode */}
-      <div className="label-body">
-        <div className="product-info">
-          <div>
-            <div className="product-name">{displayProductName}</div>
-            {productCode && <div className="product-code">{productCode}</div>}
-          </div>
-          <div className="pricing-info">
-            <div className="price-row">
-              <span className="price-label">SP:</span>
-              <span className="price-value">₹{formatIndianCurrency(Number(sellingPrice), true)}</span>
-            </div>
-            <div className="price-row mrp-row">
-              <span className="price-label">MRP:</span>
-              <span className="price-value">₹{formatIndianCurrency(Number(mrp), true)}</span>
-              <span className="tax-info">(Incl of All Taxes)</span>
-            </div>
-          </div>
+      {/* Zone 3: Pricing — always visible at bottom */}
+      <div className="label-footer">
+        <div className="price-row">
+          <span className="price-label">SP:</span>
+          <span className="price-value">₹{formatIndianCurrency(Number(sellingPrice), true)}</span>
         </div>
-
-        <div className="barcode-section">
-          <svg ref={barcodeRef} className="barcode-svg" />
+        <div className="price-row">
+          <span className="price-label">MRP:</span>
+          <span className="price-value">₹{formatIndianCurrency(Number(mrp), true)}</span>
+          <span className="tax-info">(Incl of All Taxes)</span>
         </div>
       </div>
     </div>
