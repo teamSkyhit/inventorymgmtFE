@@ -2777,13 +2777,15 @@ export default function InventoryPage() {
                 <Separator />
                 <div className="space-y-2">
                   <div className="text-xs font-semibold text-muted-foreground uppercase">Pricing Summary</div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">MRP</span>
-                    <span className="font-medium">
-                      ₹{formatIndianCurrency(Number(selectedProduct.mrp || 0), true)}
-                    </span>
-                  </div>
-                  {selectedProduct.salePrice && (
+                  {!selectedProduct.isBrassProduct && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">MRP</span>
+                      <span className="font-medium">
+                        ₹{formatIndianCurrency(Number(selectedProduct.mrp || 0), true)}
+                      </span>
+                    </div>
+                  )}
+                  {!selectedProduct.isBrassProduct && selectedProduct.salePrice && (
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Sale Price</span>
                       <span className="font-medium text-destructive">
@@ -2794,7 +2796,10 @@ export default function InventoryPage() {
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Current Price</span>
                     <span className="font-medium">
-                      ₹{formatIndianCurrency(Number(selectedProduct.price || 0), true)}
+                      ₹{formatIndianCurrency(
+                        Number(selectedProduct.calculatedPrice ?? selectedProduct.salePrice ?? selectedProduct.price ?? 0),
+                        true
+                      )}
                     </span>
                   </div>
                   <div className="flex justify-between pt-2 border-t">
@@ -2802,7 +2807,7 @@ export default function InventoryPage() {
                     <span className="font-bold">
                       ₹
                       {(
-                        Number(selectedProduct.price || 0) *
+                        Number(selectedProduct.calculatedPrice ?? selectedProduct.price ?? 0) *
                         Number(selectedProduct.quantity || 0)
                       ).toFixed(2)}
                     </span>

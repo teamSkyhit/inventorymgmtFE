@@ -82,15 +82,18 @@ export default function BrassRatePage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!formRate || isNaN(Number(formRate)) || Number(formRate) <= 0) {
-      toast.error('Please enter a valid rate')
+    const hasGramRate = formRate && !isNaN(Number(formRate)) && Number(formRate) > 0;
+    const hasFootRate = formRatePerFoot && !isNaN(Number(formRatePerFoot)) && Number(formRatePerFoot) > 0;
+    const hasMeterRate = formRatePerMeter && !isNaN(Number(formRatePerMeter)) && Number(formRatePerMeter) > 0;
+    if (!hasGramRate && !hasFootRate && !hasMeterRate) {
+      toast.error('Please enter at least one rate (per gram, per foot, or per meter)')
       return
     }
     setSubmitting(true)
     try {
       const res = await brassRateAPI.create(
         {
-          rate: Number(formRate),
+          rate: formRate ? Number(formRate) : undefined,
           ratePerFoot: formRatePerFoot ? Number(formRatePerFoot) : undefined,
           ratePerMeter: formRatePerMeter ? Number(formRatePerMeter) : undefined,
           effectiveDate: formDate,
@@ -245,7 +248,7 @@ export default function BrassRatePage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="rate">Rate per gram (₹) <span className="text-destructive">*</span></Label>
+                <Label htmlFor="rate">Rate per gram (₹) <span className="text-muted-foreground text-xs">(optional)</span></Label>
                 <Input
                   id="rate"
                   type="number"
@@ -254,7 +257,6 @@ export default function BrassRatePage() {
                   placeholder="e.g. 750.00"
                   value={formRate}
                   onChange={(e) => setFormRate(e.target.value)}
-                  required
                 />
               </div>
               <div className="space-y-2">
