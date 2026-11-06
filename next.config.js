@@ -62,7 +62,7 @@ const nextConfig = {
     ];
   },
   async rewrites() {
-    const backendUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://poojastore.dxbhost.agency';
+    const backendUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://unitrackbackend-gkad.onrender.com';
     return [
       {
         source: "/api/:path*",
