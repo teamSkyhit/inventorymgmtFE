@@ -1360,7 +1360,11 @@ export default function InventoryPage() {
                                   <div>
                                     {product.calculatedPrice != null ? `₹${formatIndianCurrency(product.calculatedPrice, true)}` : '—'}
                                     <div className="text-xs text-amber-700">
-                                      {product.weightValue ? `${Number(product.weightValue)} g × brass rate` : 'Weight not set'}
+                                      {product.pricingBasis === 'LENGTH'
+                                        ? (product.lengthPerUnit ? `${Number(product.lengthPerUnit)} ${(product.lengthUnit || 'ft').toLowerCase()} × brass rate` : 'Length not set')
+                                        : product.pricingBasis === 'FIXED'
+                                        ? 'Fixed price'
+                                        : (product.weightValue ? `${Number(product.weightValue)} g × brass rate` : 'Weight not set')}
                                     </div>
                                   </div>
                                 ) : salePrice ? (
@@ -2500,12 +2504,21 @@ export default function InventoryPage() {
                     <Separator />
                     <div className="space-y-2">
                       <div className="text-xs font-semibold text-muted-foreground uppercase">Brass Rate Pricing</div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Weight</span>
-                        <span className="font-medium">
-                          {selectedProduct.weightValue ? `${Number(selectedProduct.weightValue)} g` : '—'}
-                        </span>
-                      </div>
+                      {selectedProduct.pricingBasis === 'LENGTH' ? (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Length per Unit</span>
+                          <span className="font-medium">
+                            {selectedProduct.lengthPerUnit ? `${Number(selectedProduct.lengthPerUnit)} ${(selectedProduct.lengthUnit || 'ft').toLowerCase()}` : '—'}
+                          </span>
+                        </div>
+                      ) : selectedProduct.pricingBasis !== 'FIXED' && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Weight</span>
+                          <span className="font-medium">
+                            {selectedProduct.weightValue ? `${Number(selectedProduct.weightValue)} g` : '—'}
+                          </span>
+                        </div>
+                      )}
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Current Price</span>
                         <span className="font-medium">
