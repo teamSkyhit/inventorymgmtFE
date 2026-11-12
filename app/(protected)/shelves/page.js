@@ -144,11 +144,14 @@ export default function ShelvesPage() {
         const payload = {
           id: validatedData.id,
           name: validatedData.name,
-          description: validatedData.description || null,
+          description: validatedData.description || undefined,
         }
         const response = await shelvesAPI.create(payload, user.token)
         if (!response.success) {
-          throw new Error(response.error || response.message || 'Failed to create shelf')
+          const errMsg = Array.isArray(response.error)
+            ? response.error.map(e => e.message).join('. ')
+            : (response.error || response.message || 'Failed to create shelf')
+          throw new Error(errMsg)
         }
         logger.info('Shelf created successfully:', { id: validatedData.id })
         toast.success('Shelf created successfully')
@@ -160,12 +163,15 @@ export default function ShelvesPage() {
           formData.id,
           {
             name: validatedData.name,
-            description: validatedData.description || null,
+            description: validatedData.description || undefined,
           },
           user.token
         )
         if (!response.success) {
-          throw new Error(response.error || response.message || 'Failed to update shelf')
+          const errMsg = Array.isArray(response.error)
+            ? response.error.map(e => e.message).join('. ')
+            : (response.error || response.message || 'Failed to update shelf')
+          throw new Error(errMsg)
         }
         logger.info('Shelf updated successfully:', { id: formData.id })
         toast.success('Shelf updated successfully')
