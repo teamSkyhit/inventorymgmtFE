@@ -174,8 +174,8 @@ export default function UsersPage() {
 
   const handleSavePin = async () => {
     setPinError('')
-    if (!/^\d{4,6}$/.test(pinValue)) {
-      setPinError('PIN must be 4–6 digits (numbers only)')
+    if (!/^\d{6}$/.test(pinValue)) {
+      setPinError('PIN must be exactly 6 digits (numbers only)')
       return
     }
     if (pinValue !== pinConfirm) {
@@ -436,13 +436,13 @@ export default function UsersPage() {
                 <DialogTitle>Set POS PIN</DialogTitle>
                 <DialogDescription>
                   {pinTargetUser
-                    ? `Set a 4–6 digit PIN for ${pinTargetUser.name} to log into the POS terminal.`
-                    : 'Set a 4–6 digit PIN for POS login.'}
+                    ? `Set a 6-digit PIN for ${pinTargetUser.name} to log into the POS terminal.`
+                    : 'Set a 6-digit PIN for POS login.'}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label htmlFor="pin">New PIN (4–6 digits)</Label>
+                  <Label htmlFor="pin">New PIN (6 digits)</Label>
                   <Input
                     id="pin"
                     type="password"
