@@ -56,17 +56,14 @@ jobs:
           SSH_PORT: ${{ secrets.PROD_SSH_PORT || '22' }}
           SSH_KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
         run: |
-          for v in SSH_HOST SSH_USER SSH_KEY; do
+          # Host key is pinned via PROD_SSH_KNOWN_HOSTS (no ssh-keyscan trust-on-first-use).
+          for v in SSH_HOST SSH_USER SSH_KEY SSH_KNOWN_HOSTS; do
             if [ -z "${!v}" ]; then echo "::error::Missing secret PROD_${v}"; exit 1; fi
           done
           install -m 700 -d ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          if [ -n "$SSH_KNOWN_HOSTS" ]; then
-            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          else
-            ssh-keyscan -p "$SSH_PORT" -H "$SSH_HOST" > ~/.ssh/known_hosts 2>/dev/null
-          fi
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
           {
             echo "Host prod"
