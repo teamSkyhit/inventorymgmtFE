@@ -3,7 +3,8 @@
 // Runs the Next.js *standalone* server that `next build` generates at
 // .next/standalone/server.js. The deploy workflow ships that bundle (plus this
 // file) as the root of each release, so `server.js` below is the standalone
-// server -- NOT the repo's server.dev.js, which is a dev-only custom server.
+// server -- NOT the repo-root server.js, which is a dev-only custom server
+// (hardcoded port 3000) and is never included in the bundle.
 //
 // Usage on the server (done by scripts/deploy/remote-deploy.sh):
 //   pm2 startOrReload /var/www/prod/poojastore-frontend/current/ecosystem.config.js --update-env
