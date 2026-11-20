@@ -1,3 +1,19 @@
+// The browser always calls same-origin /api/* and Next.js rewrites those
+// requests to NEXT_PUBLIC_API_BASE_URL. The value is read at build time and
+// baked into the build output, so changing the API URL requires a rebuild.
+const DEV_API_FALLBACK = "http://localhost:8000";
+
+function resolveBackendUrl() {
+  const raw = (process.env.NEXT_PUBLIC_API_BASE_URL || "").trim();
+  if (raw) return raw.replace(/\/+$/, "");
+  if (process.env.NODE_ENV === "development") return DEV_API_FALLBACK;
+  throw new Error(
+    "NEXT_PUBLIC_API_BASE_URL is not set. It is required for production builds " +
+      "(e.g. NEXT_PUBLIC_API_BASE_URL=https://api.example.com npm run build). " +
+      `Only "next dev" falls back to ${DEV_API_FALLBACK}.`
+  );
+}
+
 const nextConfig = {
   output: "standalone",
   images: {
@@ -58,7 +74,7 @@ const nextConfig = {
     ];
   },
   async rewrites() {
-    const backendUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://unitrackbackend-gkad.onrender.com';
+    const backendUrl = resolveBackendUrl();
     return [
       {
         source: "/api/:path*",
