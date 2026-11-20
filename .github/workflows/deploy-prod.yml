@@ -1,0 +1,95 @@
+name: Deploy production
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-prod-frontend
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Build and deploy to droplet
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      APP_DIR: /var/www/prod/poojastore-frontend
+      NEXT_TELEMETRY_DISABLED: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        env:
+          NODE_ENV: production
+          NEXT_PUBLIC_API_BASE_URL: ${{ vars.PROD_API_URL || secrets.PROD_API_URL }}
+        run: |
+          if [ -z "$NEXT_PUBLIC_API_BASE_URL" ]; then
+            echo "::error::Set the PROD_API_URL repository variable (or secret) to the production API base URL."
+            exit 1
+          fi
+          npm run build
+
+      - name: Assemble standalone bundle
+        run: bash scripts/deploy/assemble-standalone.sh release.tgz
+
+      - name: Configure SSH
+        env:
+          SSH_HOST: ${{ secrets.PROD_SSH_HOST }}
+          SSH_USER: ${{ secrets.PROD_SSH_USER }}
+          SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          SSH_PORT: ${{ secrets.PROD_SSH_PORT || '22' }}
+          SSH_KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+        run: |
+          # Host key is pinned via PROD_SSH_KNOWN_HOSTS (no ssh-keyscan trust-on-first-use).
+          for v in SSH_HOST SSH_USER SSH_KEY SSH_KNOWN_HOSTS; do
+            if [ -z "${!v}" ]; then echo "::error::Missing secret PROD_${v}"; exit 1; fi
+          done
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          {
+            echo "Host prod"
+            echo "  HostName $SSH_HOST"
+            echo "  Port $SSH_PORT"
+            echo "  User $SSH_USER"
+            echo "  IdentityFile ~/.ssh/deploy_key"
+            echo "  IdentitiesOnly yes"
+            echo "  StrictHostKeyChecking yes"
+            echo "  ServerAliveInterval 30"
+          } > ~/.ssh/config
+          chmod 600 ~/.ssh/config
+
+      - name: Upload release
+        # Expanding APP_DIR/GITHUB_SHA on the runner is intentional.
+        run: |
+          # shellcheck disable=SC2029
+          ssh prod "mkdir -p '$APP_DIR/releases'"
+          scp release.tgz "prod:$APP_DIR/releases/.upload-$GITHUB_SHA.tgz"
+          scp scripts/deploy/remote-deploy.sh "prod:$APP_DIR/releases/.remote-deploy-$GITHUB_SHA.sh"
+
+      - name: Activate release (switch, reload, health check, rollback on failure)
+        run: |
+          # shellcheck disable=SC2029
+          ssh prod "APP_DIR='$APP_DIR' bash '$APP_DIR/releases/.remote-deploy-$GITHUB_SHA.sh' '$GITHUB_SHA' '$APP_DIR/releases/.upload-$GITHUB_SHA.tgz'; rc=\$?; rm -f '$APP_DIR/releases/.remote-deploy-$GITHUB_SHA.sh' '$APP_DIR/releases/.upload-$GITHUB_SHA.tgz'; exit \$rc"
+
+      - name: Clean up SSH key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key

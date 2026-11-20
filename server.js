@@ -1,3 +1,7 @@
+// DEV ONLY: custom Next.js server for local development (hardcoded port 3000).
+// Production runs the standalone server that `next build` generates at
+// .next/standalone/server.js (shipped as server.js at each release root) under
+// PM2 -- see ecosystem.config.js. This file is never part of that bundle.
 const { createServer } = require('http');
 const { parse } = require('url');
 const next = require('next');
