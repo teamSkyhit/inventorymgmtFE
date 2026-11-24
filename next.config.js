@@ -46,6 +46,8 @@ const nextConfig = {
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "X-XSS-Protection", value: "1; mode=block" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          // Internal CRM: never index (crm.gayatripoojastores.com, staging too)
+          { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },
           {
             key: "Content-Security-Policy",
             value:
