@@ -64,6 +64,7 @@ export default function AddProductPage() {
       barcode: '',
       mrp: '',
       salePrice: '',
+      websitePrice: '',
       modelType: [],
       packType: [],
       size: [],
@@ -110,6 +111,7 @@ export default function AddProductPage() {
     image: '',
     showOnWebsite: false,
     hidePrice: false,
+    websitePrice: '',
     websiteSlug: '',
     websiteImages: [],
     pricingBasis: 'WEIGHT',
@@ -398,6 +400,13 @@ export default function AddProductPage() {
       }
     }
 
+    const websitePrice = Number(formData.websitePrice);
+    if (formData.showOnWebsite && !(websitePrice > 0)) {
+      setErrors({ websitePrice: 'Website price is required when "Show on website" is on' });
+      toast.error('Website price is required when "Show on website" is on');
+      return;
+    }
+
     const validatedData = validationResult.data;
     logger.info('Creating product:', { name: validatedData.name, barcode: validatedData.barcode });
 
@@ -425,6 +434,7 @@ export default function AddProductPage() {
       image: validatedData.image || null,
       showOnWebsite: validatedData.showOnWebsite ?? false,
       hidePrice: validatedData.hidePrice ?? false,
+      websitePrice: websitePrice > 0 ? websitePrice : null,
       websiteSlug: validatedData.websiteSlug || null,
       websiteImages: validatedData.websiteImages || [],
     };
@@ -641,6 +651,7 @@ export default function AddProductPage() {
           lengthUnit: variant.lengthUnit || null,
           mrp: variant.mrp ? Number(variant.mrp) : null,
           salePrice: variant.salePrice ? Number(variant.salePrice) : null,
+          websitePrice: Number(variant.websitePrice) > 0 ? Number(variant.websitePrice) : null,
           quantity: variant.quantity ? Number(variant.quantity) : 0,
           minStockLevel: variant.minStockLevel && variant.minStockLevel !== '' ? Number(variant.minStockLevel) : null,
           allowNegativeStock: variant.allowNegativeStock !== undefined ? variant.allowNegativeStock : true,
@@ -674,6 +685,15 @@ export default function AddProductPage() {
       }
     }
 
+    // Website price is required on every variant when the product is shown on the website
+    if (formData.showOnWebsite) {
+      const missingIdx = productPayloads.findIndex((pl) => !pl.websitePrice);
+      if (missingIdx !== -1) {
+        toast.error(`Variant ${missingIdx + 1}: website price is required when "Show on website" is on`);
+        return;
+      }
+    }
+
     // Step 1: Create parent product first (with shared fields only, NO barcode/pricing/quantity)
     logger.info(`Creating parent product for: ${formData.name}`);
     
@@ -694,6 +714,11 @@ export default function AddProductPage() {
       shelfId: formData.shelfId || null,
       description: formData.description || null,
       image: formData.image || null, // Featured image for parent
+      // Website settings (prices live on each variant)
+      showOnWebsite: formData.showOnWebsite ?? false,
+      hidePrice: formData.hidePrice ?? false,
+      websiteSlug: formData.websiteSlug || null,
+      websiteImages: formData.websiteImages || [],
     };
 
     // Prepare variants array with variant-specific fields only
@@ -709,6 +734,7 @@ export default function AddProductPage() {
         barcode: payload.barcode,
         mrp: payload.mrp || null,
         salePrice: payload.salePrice || null,
+        websitePrice: payload.websitePrice || null,
         quantity: payload.quantity || 0,
         minStockLevel: payload.minStockLevel || null,
         allowNegativeStock: payload.allowNegativeStock !== undefined ? payload.allowNegativeStock : true,
@@ -961,6 +987,7 @@ export default function AddProductPage() {
         barcode: '',
         mrp: '',
         salePrice: '',
+        websitePrice: '',
         modelType: [],
         packType: [],
         size: [],
@@ -1662,6 +1689,30 @@ export default function AddProductPage() {
                           onCheckedChange={(checked) => handleChange('hidePrice', checked)}
                         />
                       </div>
+                      {productMode === 'single' ? (
+                        <div className="space-y-2">
+                          <Label htmlFor="websitePrice">Website Price *</Label>
+                          <Input
+                            id="websitePrice"
+                            type="number"
+                            step="0.01"
+                            min="0.01"
+                            max="999999.99"
+                            placeholder="899.99"
+                            value={formData.websitePrice}
+                            onChange={(e) => handleChange('websitePrice', e.target.value)}
+                            className={errors.websitePrice ? 'border-destructive' : ''}
+                          />
+                          {errors.websitePrice && (
+                            <p className="text-sm text-destructive">{errors.websitePrice}</p>
+                          )}
+                          <p className="text-xs text-muted-foreground">Price for the public website</p>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          Enter a <strong>Website Price</strong> on each variant below.
+                        </p>
+                      )}
                       <div className="space-y-2">
                         <Label htmlFor="websiteSlug">URL Slug (Optional)</Label>
                         <Input
@@ -1844,6 +1895,7 @@ export default function AddProductPage() {
                           if (variant.packType && variant.packType.length > 0) parts.push(`Pack: ${variant.packType.join(', ')}`);
                           if (variant.mrp) parts.push(`MRP: ₹${variant.mrp}`);
                           if (variant.salePrice) parts.push(`Sale: ₹${variant.salePrice}`);
+                          if (variant.websitePrice) parts.push(`Website: ₹${variant.websitePrice}`);
                           return parts.length > 0 ? parts.join(' • ') : 'Click to add details';
                         };
 
@@ -2021,6 +2073,22 @@ export default function AddProductPage() {
                                   />
                                 </div>
                               </div>
+                              )}
+
+                              {formData.showOnWebsite && (
+                                <div className="space-y-2 md:w-1/2">
+                                  <Label htmlFor={`variant-${variant.id}-websitePrice`}>Website Price *</Label>
+                                  <Input
+                                    id={`variant-${variant.id}-websitePrice`}
+                                    type="number"
+                                    step="0.01"
+                                    min="0.01"
+                                    max="999999.99"
+                                    placeholder="899.99"
+                                    value={variant.websitePrice}
+                                    onChange={(e) => updateVariant(variant.id, 'websitePrice', e.target.value)}
+                                  />
+                                </div>
                               )}
 
                               {/* Attributes - Only show if enabled */}

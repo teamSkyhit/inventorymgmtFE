@@ -88,6 +88,7 @@ export default function InventoryPage() {
     barcode: '',
     mrp: '',
     salePrice: '',
+    websitePrice: '',
     weightValue: '',
     quantity: '',
     image: '',
@@ -118,6 +119,7 @@ export default function InventoryPage() {
     shelfId: '',
     showOnWebsite: false,
     hidePrice: false,
+    websitePrice: '',
     websiteSlug: '',
     websiteImages: [],
     description: '',
@@ -936,6 +938,7 @@ export default function InventoryPage() {
       image: productWithVariants.image || '',
       showOnWebsite: productWithVariants.showOnWebsite ?? false,
       hidePrice: productWithVariants.hidePrice ?? false,
+      websitePrice: productWithVariants.websitePrice?.toString() || '',
       websiteSlug: productWithVariants.websiteSlug || '',
       websiteImages: productWithVariants.websiteImages || [],
     });
@@ -962,6 +965,7 @@ export default function InventoryPage() {
           barcode: formData.barcode,
           mrp: formData.mrp ? Number(formData.mrp) : null,
           salePrice: formData.salePrice ? Number(formData.salePrice) : null,
+          websitePrice: Number(formData.websitePrice) > 0 ? Number(formData.websitePrice) : null,
           weightValue: Number(formData.weightValue) > 0 ? Number(formData.weightValue) : null,
           quantity: formData.quantity ? Number(formData.quantity) : 0,
         };
@@ -1011,6 +1015,25 @@ export default function InventoryPage() {
         return;
       }
 
+      // Website price: on the product itself, or on every variant of a parent
+      const editVariantsList = (editingVariants.length > 0 ? editingVariants : editingProduct.variants) || [];
+      const hasVariants = editVariantsList.length > 0;
+      const websitePrice = Number(formData.websitePrice);
+      if (formData.showOnWebsite) {
+        if (hasVariants) {
+          const missing = editVariantsList.filter((v) => v.websitePrice == null || v.websitePrice === '');
+          if (missing.length > 0) {
+            const names = missing.map((v) => [v.size, v.modelType].filter(Boolean).join(' / ') || v.barcode).join(', ');
+            toast.error(`Add a website price to every variant first (missing: ${names})`);
+            return;
+          }
+        } else if (!(websitePrice > 0)) {
+          setEditErrors({ websitePrice: 'Website price is required when "Show on website" is on' });
+          toast.error('Website price is required when "Show on website" is on');
+          return;
+        }
+      }
+
       const validatedData = validationResult.data;
       logger.info('Updating product:', { id: editingProduct.id, name: validatedData.name });
 
@@ -1032,6 +1055,7 @@ export default function InventoryPage() {
         image: validatedData.image || null,
         showOnWebsite: formData.showOnWebsite ?? false,
         hidePrice: formData.hidePrice ?? false,
+        ...(hasVariants ? {} : { websitePrice: websitePrice > 0 ? websitePrice : null }),
         websiteSlug: formData.websiteSlug || null,
         websiteImages: formData.websiteImages || [],
       };
@@ -2068,6 +2092,24 @@ export default function InventoryPage() {
               />
             )}
 
+            {/* Website price for a variant (required when its product is on the website) */}
+            {editingProduct?.parentProductId && (
+              <div className="space-y-2">
+                <Label htmlFor="edit-variant-websitePrice">Website Price</Label>
+                <Input
+                  id="edit-variant-websitePrice"
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  max="999999.99"
+                  placeholder="899.99"
+                  value={formData.websitePrice}
+                  onChange={(e) => handleFormChange('websitePrice', e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">Required when the product is shown on the website</p>
+              </div>
+            )}
+
             {/* Website Settings — only for parent products */}
             {!editingProduct?.parentProductId && (
               <div className="space-y-4 rounded-lg border p-4">
@@ -2098,6 +2140,30 @@ export default function InventoryPage() {
                         onCheckedChange={(checked) => handleFormChange('hidePrice', checked)}
                       />
                     </div>
+                    {editingProduct?.variants?.length > 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        Each variant needs a <strong>Website Price</strong> (edit it in the variants list below).
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-websitePrice">Website Price *</Label>
+                        <Input
+                          id="edit-websitePrice"
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          max="999999.99"
+                          placeholder="899.99"
+                          value={formData.websitePrice}
+                          onChange={(e) => handleFormChange('websitePrice', e.target.value)}
+                          className={editErrors.websitePrice ? 'border-destructive' : ''}
+                        />
+                        {editErrors.websitePrice && (
+                          <p className="text-sm text-destructive">{editErrors.websitePrice}</p>
+                        )}
+                        <p className="text-xs text-muted-foreground">Price for the public website</p>
+                      </div>
+                    )}
                     <div className="space-y-2">
                       <Label htmlFor="edit-websiteSlug">URL Slug (Optional)</Label>
                       <Input
@@ -2168,7 +2234,7 @@ export default function InventoryPage() {
                     size="sm"
                     onClick={() => {
                       // Open add variant dialog
-                      setVariantFormData({ size: '', modelType: '', barcode: '', mrp: '', salePrice: '', weightValue: '', quantity: '', image: '' });
+                      setVariantFormData({ size: '', modelType: '', barcode: '', mrp: '', salePrice: '', websitePrice: '', weightValue: '', quantity: '', image: '' });
                       setEditingVariant(null);
                       setIsVariantEditModalOpen(true);
                     }}
@@ -2197,6 +2263,11 @@ export default function InventoryPage() {
                           <TableCell className="font-mono text-sm">{variant.barcode}</TableCell>
                           <TableCell>
                             ₹{formatIndianCurrency(Number(variant.calculatedPrice ?? (variant.salePrice || variant.price || variant.mrp || 0)), true)}
+                            <div className="text-xs text-muted-foreground">
+                              {variant.websitePrice != null
+                                ? `Website: ₹${formatIndianCurrency(Number(variant.websitePrice), true)}`
+                                : 'No website price'}
+                            </div>
                           </TableCell>
                           <TableCell>{variant.quantity || 0}</TableCell>
                           <TableCell>
@@ -2213,6 +2284,7 @@ export default function InventoryPage() {
                                     barcode: variant.barcode || '',
                                     mrp: variant.mrp?.toString() || '',
                                     salePrice: variant.salePrice?.toString() || '',
+                                    websitePrice: variant.websitePrice?.toString() || '',
                                     weightValue: variant.weightValue?.toString() || '',
                                     quantity: variant.quantity?.toString() || '',
                                     image: variant.image || '',
@@ -2297,10 +2369,16 @@ export default function InventoryPage() {
                 barcode: variantFormData.barcode,
                 mrp: variantFormData.mrp ? Number(variantFormData.mrp) : null,
                 salePrice: variantFormData.salePrice ? Number(variantFormData.salePrice) : null,
+                websitePrice: Number(variantFormData.websitePrice) > 0 ? Number(variantFormData.websitePrice) : null,
                 weightValue: Number(variantFormData.weightValue) > 0 ? Number(variantFormData.weightValue) : null,
                 quantity: variantFormData.quantity ? Number(variantFormData.quantity) : 0,
                 image: variantFormData.image || null,
               };
+
+              if (editingProduct.showOnWebsite && !payload.websitePrice) {
+                toast.error('Website price is required: this product is shown on the website');
+                return;
+              }
 
               let response;
               if (editingVariant) {
@@ -2421,6 +2499,22 @@ export default function InventoryPage() {
               </div>
             </div>
             )}
+
+            <div className="space-y-2">
+              <Label htmlFor="variant-websitePrice">
+                Website Price{editingProduct?.showOnWebsite ? ' *' : ''}
+              </Label>
+              <Input
+                id="variant-websitePrice"
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={variantFormData.websitePrice}
+                onChange={(e) => setVariantFormData(prev => ({ ...prev, websitePrice: e.target.value }))}
+                placeholder="0.00"
+              />
+              <p className="text-xs text-muted-foreground">Required when the product is shown on the website</p>
+            </div>
 
             <div className="space-y-2">
               <Label htmlFor="variant-quantity">Stock Quantity</Label>
