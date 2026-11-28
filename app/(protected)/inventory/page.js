@@ -62,7 +62,7 @@ import {
 } from '@/components/ui/pagination';
 import { useAuth } from '@/lib/auth-context';
 import { useCommon } from '@/lib/common-context';
-import { productsAPI, storeInventoryAPI, shelvesAPI } from '@/lib/api';
+import { productsAPI, storeInventoryAPI, shelvesAPI, brassRateAPI } from '@/lib/api';
 import { useStores } from '@/lib/hooks/useStores';
 import logger from '@/lib/logger';
 import { productSchema, formatZodError, getFieldErrors } from '@/lib/validations';
@@ -137,6 +137,31 @@ export default function InventoryPage() {
   const { user } = useAuth();
   const { categories } = useCommon();
   const editIsBrass = !!categories?.find((cat) => cat.id === formData.categoryId)?.isBrassCategory;
+
+  const { data: currentBrassRate } = useQuery({
+    queryKey: ['brassRate', 'current'],
+    queryFn: async () => {
+      const response = await brassRateAPI.getCurrent(user.token);
+      return response.success ? response.data : null;
+    },
+    enabled: !!user?.token && editIsBrass,
+  });
+
+  // Live brass price for the edit forms: weight x today's rate. Length-priced
+  // items keep the price the server worked out.
+  const brassPriceLine = (weightValue, product) => {
+    if (product?.pricingBasis === 'LENGTH') {
+      return product.calculatedPrice != null
+        ? `Calculated price: ₹${formatIndianCurrency(Number(product.calculatedPrice), true)} (by length)`
+        : 'Calculated price: set the length per unit';
+    }
+    if (!currentBrassRate?.rate) return 'Calculated price: no brass rate set — set one on the Brass Rate page';
+    const w = Number(weightValue);
+    const rate = Number(currentBrassRate.rate);
+    if (!(w > 0)) return `Calculated price: enter weight (rate ₹${formatIndianCurrency(rate, true)}/g)`;
+    const price = Math.round(w * rate * 100) / 100;
+    return `Calculated price: ₹${formatIndianCurrency(price, true)} (${w} g × ₹${formatIndianCurrency(rate, true)}/g)`;
+  };
 
   const qc = useQueryClient();
   const { data: stores = [] } = useStores();
@@ -1930,6 +1955,20 @@ export default function InventoryPage() {
                     <p className="text-xs text-muted-foreground">
                       Brass product — price is weight × today&apos;s brass rate.
                     </p>
+                    <p className="text-sm font-semibold">{brassPriceLine(formData.weightValue, editingProduct)}</p>
+                    <div className="space-y-2 pt-2">
+                      <Label htmlFor="edit-regularPrice">Regular Price (Optional)</Label>
+                      <Input
+                        id="edit-regularPrice"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        value={formData.mrp}
+                        onChange={(e) => handleFormChange('mrp', e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground">For reference only; billing uses the calculated price.</p>
+                    </div>
                   </div>
                   ) : (
                   <>
@@ -2474,6 +2513,20 @@ export default function InventoryPage() {
               <p className="text-xs text-muted-foreground">
                 Brass product — price is weight × today&apos;s brass rate.
               </p>
+              <p className="text-sm font-semibold">{brassPriceLine(variantFormData.weightValue, editingVariant)}</p>
+              <div className="space-y-2 pt-2">
+                <Label htmlFor="variant-regularPrice">Regular Price (Optional)</Label>
+                <Input
+                  id="variant-regularPrice"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="0.00"
+                  value={variantFormData.mrp}
+                  onChange={(e) => setVariantFormData(prev => ({ ...prev, mrp: e.target.value }))}
+                />
+                <p className="text-xs text-muted-foreground">For reference only; billing uses the calculated price.</p>
+              </div>
             </div>
             ) : (
             <div className="grid grid-cols-2 gap-4">

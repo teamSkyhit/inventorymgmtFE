@@ -178,7 +178,7 @@ export default function AddProductPage() {
     return Math.round(l * rate * 100) / 100;
   };
 
-  const renderBrassPricingField = ({ weightId, weightValue, onWeightChange, weightError, pricingBasis, onBasisChange, lengthPerUnit, onLengthChange, lengthUnit, onUnitChange, lengthError }) => {
+  const renderBrassPricingField = ({ weightId, weightValue, onWeightChange, weightError, pricingBasis, onBasisChange, lengthPerUnit, onLengthChange, lengthUnit, onUnitChange, lengthError, regularPrice, onRegularPriceChange }) => {
     const weightPreview = brassPricePreview(weightValue);
     const lengthPreview = calcLengthPreview(lengthPerUnit, lengthUnit, currentBrassRate);
     return (
@@ -277,6 +277,20 @@ export default function AddProductPage() {
                 </>
               ) : <div className="text-amber-800">No brass rate set — set one on the Brass Rate page.</div>}
             </div>
+          </div>
+        )}
+
+        {/* Regular price: optional reference price (stored as MRP); billing still uses the calculated price */}
+        {pricingBasis !== 'FIXED' && onRegularPriceChange && (
+          <div className="space-y-2 max-w-xs">
+            <Label htmlFor={`${weightId}-regularPrice`}>Regular Price (Optional)</Label>
+            <Input
+              id={`${weightId}-regularPrice`}
+              type="number" step="0.01" min="0" placeholder="0.00"
+              value={regularPrice ?? ''}
+              onChange={(e) => onRegularPriceChange(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">Shown for reference (e.g. struck-through on the website). Billing uses the calculated price.</p>
           </div>
         )}
 
@@ -1373,6 +1387,8 @@ export default function AddProductPage() {
                     lengthUnit: formData.lengthUnit || 'FOOT',
                     onUnitChange: (v) => handleChange('lengthUnit', v),
                     lengthError: errors.lengthPerUnit,
+                    regularPrice: formData.mrp,
+                    onRegularPriceChange: (v) => handleChange('mrp', v),
                   })
                 ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2047,6 +2063,8 @@ export default function AddProductPage() {
                                   lengthUnit: variant.lengthUnit || 'FOOT',
                                   onUnitChange: (v) => updateVariant(variant.id, 'lengthUnit', v),
                                   lengthError: errors[`variant_${variant.id}_lengthPerUnit`],
+                                  regularPrice: variant.mrp,
+                                  onRegularPriceChange: (v) => updateVariant(variant.id, 'mrp', v),
                                 })
                               ) : (
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
