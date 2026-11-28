@@ -45,6 +45,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import ImageUpload from '@/components/image-upload';
+import WebsiteSeoFields from '@/components/website-seo-fields';
+import { emptyWebsiteFields, validateWebsiteFields, websiteFieldsPayload, websiteFieldsFromProduct } from '@/lib/website-seo';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -120,7 +122,7 @@ export default function InventoryPage() {
     showOnWebsite: false,
     hidePrice: false,
     websitePrice: '',
-    websiteSlug: '',
+    ...emptyWebsiteFields,
     websiteImages: [],
     description: '',
     image: '',
@@ -939,7 +941,7 @@ export default function InventoryPage() {
       showOnWebsite: productWithVariants.showOnWebsite ?? false,
       hidePrice: productWithVariants.hidePrice ?? false,
       websitePrice: productWithVariants.websitePrice?.toString() || '',
-      websiteSlug: productWithVariants.websiteSlug || '',
+      ...websiteFieldsFromProduct(productWithVariants),
       websiteImages: productWithVariants.websiteImages || [],
     });
     const subs =
@@ -1033,6 +1035,15 @@ export default function InventoryPage() {
           return;
         }
       }
+      // URL slug (required) and SEO/video fields, on products (not variants)
+      if (formData.showOnWebsite && !editingProduct.parentProductId) {
+        const websiteError = validateWebsiteFields(formData);
+        if (websiteError) {
+          setEditErrors(websiteError);
+          toast.error(Object.values(websiteError)[0]);
+          return;
+        }
+      }
 
       const validatedData = validationResult.data;
       logger.info('Updating product:', { id: editingProduct.id, name: validatedData.name });
@@ -1056,7 +1067,7 @@ export default function InventoryPage() {
         showOnWebsite: formData.showOnWebsite ?? false,
         hidePrice: formData.hidePrice ?? false,
         ...(hasVariants ? {} : { websitePrice: websitePrice > 0 ? websitePrice : null }),
-        websiteSlug: formData.websiteSlug || null,
+        ...(editingProduct.parentProductId ? {} : websiteFieldsPayload(formData)),
         websiteImages: formData.websiteImages || [],
       };
 
@@ -2164,21 +2175,13 @@ export default function InventoryPage() {
                         <p className="text-xs text-muted-foreground">Price for the public website</p>
                       </div>
                     )}
-                    <div className="space-y-2">
-                      <Label htmlFor="edit-websiteSlug">URL Slug (Optional)</Label>
-                      <Input
-                        id="edit-websiteSlug"
-                        placeholder="e.g. organic-whole-milk-1gal"
-                        value={formData.websiteSlug}
-                        onChange={(e) =>
-                          handleFormChange('websiteSlug', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-'))
-                        }
-                        maxLength={255}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Used in the website URL: /products/<strong>{formData.websiteSlug || 'your-slug'}</strong>
-                      </p>
-                    </div>
+                    <WebsiteSeoFields
+                      idPrefix="edit-"
+                      values={formData}
+                      onChange={handleFormChange}
+                      productName={formData.name}
+                      errors={editErrors}
+                    />
                     <div className="space-y-3">
                       <Label>Additional Website Images (Optional)</Label>
                       {formData.websiteImages.map((img, idx) => (
