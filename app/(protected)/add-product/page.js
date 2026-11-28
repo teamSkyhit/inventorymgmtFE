@@ -200,10 +200,7 @@ export default function AddProductPage() {
               <RadioGroupItem value="LENGTH" id={`${weightId}-basis-length`} />
               <Label htmlFor={`${weightId}-basis-length`} className="font-normal cursor-pointer">By Length (foot/meter)</Label>
             </div>
-            <div className="flex items-center gap-2">
-              <RadioGroupItem value="FIXED" id={`${weightId}-basis-fixed`} />
-              <Label htmlFor={`${weightId}-basis-fixed`} className="font-normal cursor-pointer">Fixed Price</Label>
-            </div>
+            {/* No "Fixed Price" for brass: a fixed-price item belongs in a non-brass category */}
           </RadioGroup>
         </div>
 
@@ -281,7 +278,7 @@ export default function AddProductPage() {
         )}
 
         {/* Regular price: optional reference price (stored as MRP); billing still uses the calculated price */}
-        {pricingBasis !== 'FIXED' && onRegularPriceChange && (
+        {onRegularPriceChange && (
           <div className="space-y-2 max-w-xs">
             <Label htmlFor={`${weightId}-regularPrice`}>Regular Price (Optional)</Label>
             <Input
@@ -292,11 +289,6 @@ export default function AddProductPage() {
             />
             <p className="text-xs text-muted-foreground">Shown for reference (e.g. struck-through on the website). Billing uses the calculated price.</p>
           </div>
-        )}
-
-        {/* Fixed price note */}
-        {pricingBasis === 'FIXED' && (
-          <p className="text-sm text-amber-800">Price will be taken from the Sale Price / MRP fields above — not calculated from brass rate.</p>
         )}
       </div>
     );
