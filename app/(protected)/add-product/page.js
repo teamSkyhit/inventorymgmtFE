@@ -39,6 +39,8 @@ import { useRouter } from 'next/navigation';
 import { useCommon } from '@/lib/common-context';
 import { useAuth } from '@/lib/auth-context';
 import ImageUpload from '@/components/image-upload';
+import WebsiteSeoFields from '@/components/website-seo-fields';
+import { emptyWebsiteFields, validateWebsiteFields, websiteFieldsPayload } from '@/lib/website-seo';
 import { productsAPI, shelvesAPI, brassRateAPI } from '@/lib/api';
 import logger from '@/lib/logger';
 import { productSchema, formatZodError, getFieldErrors } from '@/lib/validations';
@@ -112,7 +114,7 @@ export default function AddProductPage() {
     showOnWebsite: false,
     hidePrice: false,
     websitePrice: '',
-    websiteSlug: '',
+    ...emptyWebsiteFields,
     websiteImages: [],
     pricingBasis: 'WEIGHT',
     lengthPerUnit: '',
@@ -406,6 +408,14 @@ export default function AddProductPage() {
       toast.error('Website price is required when "Show on website" is on');
       return;
     }
+    if (formData.showOnWebsite) {
+      const websiteError = validateWebsiteFields(formData);
+      if (websiteError) {
+        setErrors(websiteError);
+        toast.error(Object.values(websiteError)[0]);
+        return;
+      }
+    }
 
     const validatedData = validationResult.data;
     logger.info('Creating product:', { name: validatedData.name, barcode: validatedData.barcode });
@@ -435,7 +445,7 @@ export default function AddProductPage() {
       showOnWebsite: validatedData.showOnWebsite ?? false,
       hidePrice: validatedData.hidePrice ?? false,
       websitePrice: websitePrice > 0 ? websitePrice : null,
-      websiteSlug: validatedData.websiteSlug || null,
+      ...websiteFieldsPayload(formData),
       websiteImages: validatedData.websiteImages || [],
     };
 
@@ -687,6 +697,12 @@ export default function AddProductPage() {
 
     // Website price is required on every variant when the product is shown on the website
     if (formData.showOnWebsite) {
+      const websiteError = validateWebsiteFields(formData);
+      if (websiteError) {
+        setErrors(websiteError);
+        toast.error(Object.values(websiteError)[0]);
+        return;
+      }
       const missingIdx = productPayloads.findIndex((pl) => !pl.websitePrice);
       if (missingIdx !== -1) {
         toast.error(`Variant ${missingIdx + 1}: website price is required when "Show on website" is on`);
@@ -717,7 +733,7 @@ export default function AddProductPage() {
       // Website settings (prices live on each variant)
       showOnWebsite: formData.showOnWebsite ?? false,
       hidePrice: formData.hidePrice ?? false,
-      websiteSlug: formData.websiteSlug || null,
+      ...websiteFieldsPayload(formData),
       websiteImages: formData.websiteImages || [],
     };
 
@@ -1713,21 +1729,13 @@ export default function AddProductPage() {
                           Enter a <strong>Website Price</strong> on each variant below.
                         </p>
                       )}
-                      <div className="space-y-2">
-                        <Label htmlFor="websiteSlug">URL Slug (Optional)</Label>
-                        <Input
-                          id="websiteSlug"
-                          placeholder="e.g. organic-whole-milk-1gal"
-                          value={formData.websiteSlug}
-                          onChange={(e) =>
-                            handleChange('websiteSlug', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-'))
-                          }
-                          maxLength={255}
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Used in the website URL: /products/<strong>{formData.websiteSlug || 'your-slug'}</strong>
-                        </p>
-                      </div>
+                      <WebsiteSeoFields
+                        idPrefix=""
+                        values={formData}
+                        onChange={handleChange}
+                        productName={formData.name}
+                        errors={errors}
+                      />
                       <div className="space-y-3">
                         <Label>Additional Website Images (Optional)</Label>
                         {formData.websiteImages.map((img, idx) => (
